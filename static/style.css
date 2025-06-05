@@ -13,11 +13,11 @@
         .option-checkboxes input[type="checkbox"] { 
             margin-right: 6px; 
         }
-        .domain-input, .ptm-input { 
+        .domain-input, .ptm-input, .protein-input { 
             display: none; 
             margin: 15px 0; 
         }
-        .domain-input input[type="text"], .ptm-input input[type="text"] { 
+        .domain-input input[type="text"], .ptm-input input[type="text"], .protein-input input[type="text"]  { 
             padding: 10px; 
             border: 2px solid var(--bs-border-color); 
             border-radius: 6px; 
@@ -30,7 +30,7 @@
             position: relative;
             z-index: 2;
         }
-        .domain-hint, .ptm-hint { 
+        .domain-hint, .ptm-hint, .protein-hint { 
             font-size: 0.85em; 
             color: var(--bs-secondary); 
             margin-top: 8px;

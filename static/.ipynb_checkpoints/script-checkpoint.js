@@ -1,6 +1,8 @@
 document.addEventListener('DOMContentLoaded', function() {
     let validPTMs = [];
     let validDomains = [];
+    let validIDs = [];  // valid protein ids
+    const hierarchy = ['ptm_name', 'AA', 'sec', 'domain'];
 
     // Mapping for corresponding options between X and Y dropdowns
     const xToYMap = {
@@ -15,6 +17,31 @@ document.addEventListener('DOMContentLoaded', function() {
         'sec': 'sec',
         'domain': 'domain'
     };
+
+    function getHighestHierarchy(x, y) {
+        const levels = [x, y].filter(Boolean).map(val => hierarchy.indexOf(val));
+        if (levels.length === 0) return -1; // No selection
+        return Math.max(...levels);
+    }
+
+    function getValidZOptions(x, y) {
+        const highest = getHighestHierarchy(x, y);
+        const validZ = [];
+        // z must be strictly higher (index greater) than highest selected x or y
+        if (highest < 0) {
+            // No selection in x or y, allow sec, domain, protein
+            validZ.push('sec', 'domain', 'protein');
+        } else {
+            for (let i = highest + 1; i < hierarchy.length; ++i) {
+                if (hierarchy[i] !== 'ptm_name' && hierarchy[i] !== 'AA') {
+                    validZ.push(hierarchy[i]);
+                }
+            }
+            validZ.push('protein'); // protein always valid
+        }
+        return validZ;
+    }
+
 
     // Function to update Y options based on X selection
     function updateYOptions(selectedXValue) {
@@ -88,6 +115,23 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    function updateZOptions(x, y) {
+        const zSelect = document.getElementById('z');
+        const validZ = getValidZOptions(x, y);
+        Array.from(zSelect.options).forEach(option => {
+            // Only enable if in validZ
+            option.disabled = !validZ.includes(option.value);
+            // Optionally, gray out disabled options
+            option.style.color = option.disabled ? '#666' : '';
+        });
+        // If current selection is now invalid, reset it
+        if (!validZ.includes(zSelect.value)) {
+            zSelect.value = '';
+            hideAllZInputs();
+        }
+    }
+
+
     // Function to hide all X input fields
     function hideAllXInputs() {
         document.getElementById('x_ptm_input').style.display = 'none';
@@ -102,16 +146,40 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('y_aa_checkboxes').style.display = 'none';
         document.getElementById('y_sec_checkboxes').style.display = 'none';
         document.getElementById('y_domain_input').style.display = 'none';
+    }    
+
+    // Function to hide all Z input fields
+    function hideAllZInputs() {
+        document.getElementById('z_sec_checkboxes').style.display = 'none';
+        document.getElementById('z_domain_input').style.display = 'none';
+        document.getElementById('z_protein_input').style.display = 'none';
     }
+    
+    // Show/hide input fields based on z selection
+    document.getElementById('z').addEventListener('change', function() {
+        // Hide all z inputs first
+        hideAllZInputs();
+        
+        // Show the appropriate input based on selection
+        if (this.value === 'sec') {
+            document.getElementById('z_sec_checkboxes').style.display = 'block';
+        } else if (this.value === 'domain') {
+            document.getElementById('z_domain_input').style.display = 'block';
+        } else if (this.value === 'protein') {
+            document.getElementById('z_protein_input').style.display = 'block';
+        }
+    });
 
     async function fetchValidLists() {
         try {
-            const [ptms, domains] = await Promise.all([
+            const [ptms, domains, proteins] = await Promise.all([
                 fetch('/static/valid_PTMs.json').then(r => r.json()),
-                fetch('/static/valid_domains.json').then(r => r.json())
+                fetch('/static/valid_domains.json').then(r => r.json()),
+                fetch('/static/valid_proteins.json').then(r => r.json())
             ]);
             validPTMs = ptms;
             validDomains = domains;
+            validIDs = proteins
         } catch (error) {
             console.error('Error loading validation lists:', error);
         }
@@ -152,36 +220,65 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('x_ptm-overlay').scrollLeft = this.scrollLeft;
     });
 
-    // x Domain overlay
-    document.getElementById('x_domain_text').addEventListener('input', function() {
-        renderOverlay('x_domain_text', 'domain-overlay', ' ', validDomains);
-    });
-    document.getElementById('x_domain_text').addEventListener('scroll', function() {
-        document.getElementById('domain-overlay').scrollLeft = this.scrollLeft;
-    });
-
     // y PTM overlay
     document.getElementById('y_ptm_text').addEventListener('input', function() {
-        renderOverlay('y_ptm_text', 'second_ptm-overlay', ' ', validPTMs);
+        renderOverlay('y_ptm_text', 'y_ptm-overlay', ' ', validPTMs);
     });
     document.getElementById('y_ptm_text').addEventListener('scroll', function() {
-        document.getElementById('second_ptm-overlay').scrollLeft = this.scrollLeft;
+        document.getElementById('y_ptm-overlay').scrollLeft = this.scrollLeft;
+    });
+
+    // x Domain overlay
+    document.getElementById('x_domain_text').addEventListener('input', function() {
+        renderOverlay('x_domain_text', 'x_domain-overlay', ' ', validDomains);
+    });
+    document.getElementById('x_domain_text').addEventListener('scroll', function() {
+        document.getElementById('x_domain-overlay').scrollLeft = this.scrollLeft;
     });
 
     // y Domain overlay
     document.getElementById('y_domain_text').addEventListener('input', function() {
-        renderOverlay('y_domain_text', 'second_domain-overlay', ' ', validDomains);
+        renderOverlay('y_domain_text', 'y_domain-overlay', ' ', validDomains);
     });
     document.getElementById('y_domain_text').addEventListener('scroll', function() {
-        document.getElementById('second_domain-overlay').scrollLeft = this.scrollLeft;
+        document.getElementById('y_domain-overlay').scrollLeft = this.scrollLeft;
     });
 
-    // Show/hide input fields based on x selection
-    document.getElementById('x').addEventListener('change', function() {
-        // Hide all x inputs first
-        hideAllXInputs();
+    // z Domain overlay
+    document.getElementById('z_domain_text').addEventListener('input', function() {
+        renderOverlay('z_domain_text', 'z_domain-overlay', ' ', validDomains);
+    });
+    document.getElementById('z_domain_text').addEventListener('scroll', function() {
+        document.getElementById('z_domain-overlay').scrollLeft = this.scrollLeft;
+    });
+
+    // z protein overlay
+    document.getElementById('z_protein_text').addEventListener('input', function() {
+        renderOverlay('z_protein_text', 'z_protein-overlay', ' ', validIDs);
+    });
+    document.getElementById('z_protein_text').addEventListener('scroll', function() {
+        document.getElementById('z_protein-overlay').scrollLeft = this.scrollLeft;
+    });
+    
+    // Show/hide input fields based on z selection
+    document.getElementById('z').addEventListener('change', function() {
+        // Hide all z inputs first
+        //hideAllZInputs();
         
         // Show the appropriate input based on selection
+        if (this.value === 'AA') {
+            document.getElementById('z_aa_checkboxes').style.display = 'block';
+        } else if (this.value === 'sec') {
+            document.getElementById('z_sec_checkboxes').style.display = 'block';
+        } else if (this.value === 'domain') {
+            document.getElementById('z_domain_input').style.display = 'block';
+        } else if (this.value === 'protein') {
+            document.getElementById('z_protein_input').style.display = 'block';
+        }
+    });
+
+    document.getElementById('x').addEventListener('change', function() {
+        hideAllXInputs();
         if (this.value === 'ptm_name') {
             document.getElementById('x_ptm_input').style.display = 'block';
         } else if (this.value === 'AA') {
@@ -191,18 +288,14 @@ document.addEventListener('DOMContentLoaded', function() {
         } else if (this.value === 'domain') {
             document.getElementById('x_domain_input').style.display = 'block';
         }
-        
-        // Update Y options to disable the selected X option
         updateYOptions(this.value);
-    });
+        updateZOptions(this.value, document.getElementById('y').value);
+});
 
-    // Show/hide input fields based on y selection
+
     document.getElementById('y').addEventListener('change', function() {
-        // Hide all y inputs first
         hideAllYInputs();
-        
-        // Show the appropriate input based on selection
-        if (this.value === 'PTM') {
+        if (this.value === 'ptm_name') {
             document.getElementById('y_ptm_input').style.display = 'block';
         } else if (this.value === 'AA') {
             document.getElementById('y_aa_checkboxes').style.display = 'block';
@@ -211,10 +304,19 @@ document.addEventListener('DOMContentLoaded', function() {
         } else if (this.value === 'domain') {
             document.getElementById('y_domain_input').style.display = 'block';
         }
-        
-        // Update X options to disable the selected Y option
         updateXOptions(this.value);
-    });
+        updateZOptions(document.getElementById('x').value, this.value);
+});
+
+
+        // In x change event:
+    updateYOptions(this.value);
+    updateZOptions(this.value, document.getElementById('y').value);
+    
+    // In y change event:
+    updateXOptions(this.value);
+    updateZOptions(document.getElementById('x').value, this.value);
+
 
     // Select all checkboxes for x AA
     document.getElementById('x_aa_all').addEventListener('change', function() {
@@ -227,7 +329,7 @@ document.addEventListener('DOMContentLoaded', function() {
         checkbox.addEventListener('change', function() {
             const all = document.querySelectorAll('#x_aa_checkboxes input[type="checkbox"][name="x_data[]"]');
             const allChecked = Array.from(all).every(cb => cb.checked);
-            document.getElementById('x_aa_all').checked = allChecked;
+            /*document.getElementById('x_aa_all').checked = allChecked;*/
         });
     });
 
@@ -276,8 +378,25 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // Select all checkboxes for z Sec
+    document.getElementById('z_sec_all').addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('#z_sec_checkboxes input[type="checkbox"][name="z_data[]"]');
+        checkboxes.forEach(checkbox => checkbox.checked = this.checked);
+    });
+
+    // Uncheck "Select All" if any individual box is unchecked 
+    document.querySelectorAll('#z_sec_checkboxes input[type="checkbox"][name="z_data[]"]').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const all = document.querySelectorAll('#z_sec_checkboxes input[type="checkbox"][name="z_data[]"]');
+            const allChecked = Array.from(all).every(cb => cb.checked);
+            document.getElementById('z_sec_all').checked = allChecked;
+        });
+    });
+
     // Initialize - hide all input fields
     hideAllXInputs();
     hideAllYInputs();
-});
+    hideAllZInputs();
+    updateZOptions('', '');
 
+});

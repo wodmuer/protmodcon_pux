@@ -33,6 +33,7 @@
                                 <option value="AA">Amino Acid</option>
                                 <option value="sec">Secondary Structure</option>
                                 <option value="domain">Protein Domain</option>
+                                <option value="protein">Protein ID (UniProt)</option>
                             </select>
                         </div>
                     </div>
@@ -42,21 +43,19 @@
                         <label class="form-label">PTM Modifications</label>
                         <div style="position:relative;">
                             <div id="x_ptm-overlay" class="input-token-overlay"></div>
-                            <input type="text" id="x_ptm_text" name="x_data[]" class="form-control" placeholder="e.g. [1]Acetyl [21]Phospho [35]Oxidation" autocomplete="on">
+                            <input type="text" id="x_ptm_text" name="x_data[]" class="form-control" placeholder="e.g. [1]Acetyl [21]Phospho [35]Oxidation" autocomplete="off">
                         </div>
                         <span class="ptm-hint">Enter PTM modifications separated by spaces (e.g. [1]Acetyl [21]Phospho [35]Oxidation)</span>
                     </div>
 
                      <!-- Domain input for x -->
                     <div id="x_domain_input" class="domain-input input-with-overlay" style="position: relative;">
-                        <label class="form-label">Protein Domain(s)</label>
                         <div style="position:relative;">
-                            <div id="domain-overlay" class="input-token-overlay"></div>
-                            <input type="text" id="x_domain_text" name="x_data[]" class="form-control" placeholder="e.g. IPR000001 IPR000007" autocomplete="on">
+                            <div id="x_domain-overlay" class="input-token-overlay"></div>
+                            <input type="text" id="x_domain_text" name="x_data[]" class="form-control" placeholder="e.g. IPR000001 IPR000007" autocomplete="off">
                         </div>
                         <span class="domain-hint">Enter protein domain(s) separated by spaces (e.g. IPR000001 IPR000007)</span>
                     </div>
-
                     
                     <!-- AA checkboxes for x -->
                     <div id="x_aa_checkboxes" class="option-checkboxes">
@@ -64,7 +63,7 @@
                         <div class="row">
                             <div class="col-12 mb-2">
                                 <label class="form-check-label">
-                                    <input type="checkbox" id="x_aa_all" class="form-check-input" />
+                                    <input type="checkbox" id="x_aa_all" class="form-check-input">
                                     <strong>Select All</strong>
                                 </label>
                             </div>
@@ -137,7 +136,7 @@
                         <div class="row">
                             <div class="col-12 mb-2">
                                 <label class="form-check-label">
-                                    <input type="checkbox" id="x_sec_all" class="form-check-input" />
+                                    <input type="checkbox" id="x_sec_all" class="form-check-input">
                                     <strong>Select All</strong>
                                 </label>
                             </div>
@@ -177,7 +176,15 @@
                         </div>
                     </div>
 
-
+                     <!-- protein input for x -->
+                    <div id="x_protein_input" class="protein-input input-with-overlay" style="position: relative;">
+                        <label class="form-label">Protein IDs</label>
+                        <div style="position:relative;">
+                            <div id="x_protein-overlay" class="input-token-overlay"></div>
+                            <input type="text" id="x_protein_text" name="x_data[]" class="form-control" placeholder="e.g. P05067 P41227" autocomplete="off">
+                        </div>
+                        <span class="protein-hint">Enter protein IDs (UniProt) separated by spaces (e.g. P05067 P41227)</span>
+                    </div>
 
                     <div class="row align-items-center mt-4">
                         <div class="col-auto">
@@ -186,7 +193,7 @@
                         <div class="col-auto">
                             <select name="y" id="y" class="form-select" required>
                                 <option value="" disabled selected>Select annotation type</option>
-                                <option value="PTM">PTM (Post-translational modification)</option>
+                                <option value="ptm_name">PTM (Post-translational modification)</option>
                                 <option value="AA">Amino Acid</option>
                                 <option value="sec">Secondary Structure</option>
                                 <option value="domain">Protein Domain</option>
@@ -198,11 +205,20 @@
                     <div id="y_ptm_input" class="ptm-input input-with-overlay" style="position: relative;">
                         <label class="form-label">PTM Modifications</label>
                         <div style="position:relative;">
-                            <div id="second_ptm-overlay" class="input-token-overlay"></div>
-                            <input type="text" id="y_ptm_text" name="y_data" class="form-control" placeholder="e.g. [1]Acetyl [21]Phospho [35]Oxidation" autocomplete="on">
+                            <div id="y_ptm-overlay" class="input-token-overlay"></div>
+                            <input type="text" id="y_ptm_text" name="y_data[]" class="form-control" placeholder="e.g. [1]Acetyl [21]Phospho [35]Oxidation" autocomplete="off">
                         </div>
-                        <div id="y_ptm_autocomplete" class="autocomplete-dropdown"></div>
                         <span class="ptm-hint">Enter PTM modifications separated by spaces (e.g. [1]Acetyl [21]Phospho [35]Oxidation)</span>
+                    </div>
+
+                    <!-- Domain input for y -->
+                    <div id="y_domain_input" class="domain-input input-with-overlay" style="position: relative;">
+                        <label class="form-label">Protein Domain(s)</label>
+                        <div style="position:relative;">
+                            <div id="y_domain-overlay" class="input-token-overlay"></div>
+                            <input type="text" id="y_domain_text" name="y_data[]" class="form-control" placeholder="e.g. IPR000001 IPR000007" autocomplete="off">
+                        </div>
+                        <span class="domain-hint">Enter protein domain(s) separated by spaces (e.g. IPR000001 IPR000007)</span>
                     </div>
 
                     <!-- AA checkboxes for y -->
@@ -211,7 +227,7 @@
                         <div class="row">
                             <div class="col-12 mb-2">
                                 <label class="form-check-label">
-                                    <input type="checkbox" id="y_aa_all" class="form-check-input" />
+                                    <input type="checkbox" id="y_aa_all" class="form-check-input">
                                     <strong>Select All</strong>
                                 </label>
                             </div>
@@ -284,7 +300,7 @@
                         <div class="row">
                             <div class="col-12 mb-2">
                                 <label class="form-check-label">
-                                    <input type="checkbox" id="y_sec_all" class="form-check-input" />
+                                    <input type="checkbox" id="y_sec_all" class="form-check-input">
                                     <strong>Select All</strong>
                                 </label>
                             </div>
@@ -323,20 +339,89 @@
                             </div>
                         </div>
                     </div>
+                    
+                   <!-- z-section -->
+                    <div class="row align-items-center mt-4">
+                        <div class="col-auto">
+                            <label class="form-label">Within the context of</label>
+                        </div>
+                        <div class="col-auto">
+                            <select name="z" id="z" class="form-select">
+                                <option value="" disabled selected>Select annotation type</option>
+                                <option value="sec">Secondary Structure</option>
+                                <option value="domain">Protein Domain</option>
+                                <option value="protein">Protein ID (UniProt)</option>
+                            </select>
+                        </div>
+                    </div>   
 
-                    <!-- Domain input for y -->
-                    <div id="y_domain_input" class="domain-input input-with-overlay" style="position: relative;">
+                    <!-- protein input for z -->
+                    <div id="z_protein_input" class="protein-input input-with-overlay" style="position: relative;">
+                        <label class="form-label">Protein IDs</label>
+                        <div style="position:relative;">
+                            <div id="z_protein-overlay" class="input-token-overlay"></div>
+                            <input type="text" id="z_protein_text" name="z_data[]" class="form-control" placeholder="e.g. P05067 P41227" autocomplete="off">
+                        </div>
+                        <span class="protein-hint">Enter protein IDs (UniProt) separated by spaces (e.g. P05067 P41227)</span>
+                    </div>
+
+                    <!-- Domain input for z -->
+                    <div id="z_domain_input" class="domain-input input-with-overlay" style="position: relative;">
                         <label class="form-label">Protein Domain(s)</label>
                         <div style="position:relative;">
-                            <div id="second_domain-overlay" class="input-token-overlay"></div>
-                            <input type="text" id="y_domain_text" name="y_data" class="form-control" placeholder="e.g. IPR000001 IPR000007" autocomplete="on">
+                            <div id="z_domain-overlay" class="input-token-overlay"></div>
+                            <input type="text" id="z_domain_text" name="z_data[]" class="form-control" placeholder="e.g. IPR000001 IPR000007">
                         </div>
                         <span class="domain-hint">Enter protein domain(s) separated by spaces (e.g. IPR000001 IPR000007)</span>
                     </div>
-                </div>
 
-                <button type="submit" class="btn btn-primary mt-3">Analyze</button>
-            </form>
+                    <!-- sec checkboxes for z -->
+                    <div id="z_sec_checkboxes" class="option-checkboxes">
+                        <h6 class="mb-3">Select Secondary Structures:</h6>
+                        <div class="row">
+                            <div class="col-12 mb-2">
+                                <label class="form-check-label">
+                                    <input type="checkbox" id="z_sec_all" class="form-check-input">
+                                    <strong>Select All</strong>
+                                </label>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-check-label"><input type="checkbox" name="z_data[]" value="3₁₀-helix" class="form-check-input">3₁₀-helix</label>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-check-label"><input type="checkbox" name="z_data[]" value="α-helix" class="form-check-input">α-helix</label>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-check-label"><input type="checkbox" name="z_data[]" value="π-helix" class="form-check-input">π-helix</label>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-check-label"><input type="checkbox" name="z_data[]" value="PPII-helix" class="form-check-input">PPII-helix</label>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-check-label"><input type="checkbox" name="z_data[]" value="ß-bridge" class="form-check-input">ß-bridge</label>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-check-label"><input type="checkbox" name="z_data[]" value="ß-strand" class="form-check-input">ß-strand</label>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-check-label"><input type="checkbox" name="z_data[]" value="turn" class="form-check-input">turn</label>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-check-label"><input type="checkbox" name="z_data[]" value="bend" class="form-check-input">bend</label>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-check-label"><input type="checkbox" name="z_data[]" value="loop" class="form-check-input">loop</label>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-check-label"><input type="checkbox" name="z_data[]" value="unassigned" class="form-check-input">unassigned</label>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-check-label"><input type="checkbox" name="z_data[]" value="IDR" class="form-check-input">IDR</label>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary mt-3">Analyze</button>
+                </form>
         </div>
     </div>
 

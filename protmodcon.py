@@ -8,7 +8,6 @@ import re
 from multiprocessing import Pool
 from functools import lru_cache
 import time
-
 import pandas as pd
 import numpy as np
 import scipy.stats
@@ -50,7 +49,7 @@ def compute_chisq(args):
     return p
 
 def get_n(protein_id_annotation_position, protein_id_position_AA, t, AAs=[]):
-    """Highly optimized get_n function with advanced filtering"""
+    """Optimized get_n function with filtering"""
         
     # Fast path: check if annotation exists at all
     has_annotation = False
@@ -257,13 +256,25 @@ def process_i(x_types, y_types, n, nm_per_d, nc_per_i, k_per_d_i):
     print(f"Analysis processing completed in {time.time() - start_time:.2f} seconds")
     return result_df
     
-def filter_positions_with_all_categories(protein_id_annotation_position, sec_ids=[], domain_ids=[], protein_ids=[]):
+def filter_positions_with_all_categories(protein_id_annotation_position, filters):
     """
-    Filter positions in protein_id_annotation_position to only include positions 
-    that have annotations from specified categories (AA, sec, domain).
-    Only filters for categories where IDs lists are non-empty.
+    Filter positions in protein_id_annotation_position.json to only include positions 
+    that have annotations specified by the filters.
     """
-    if not any([sec_ids, domain_ids, protein_ids]):
+    ptm_ids, AA_ids, sec_ids, domain_ids, protein_ids = [], [], [], [], []
+    for item in filters:
+        if item.startswith('['):
+            ptm_ids.append(item)
+        elif item in ('A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y'):
+            AA_ids.append(item)
+        elif item in ('310HELX', 'AHELX', 'PIHELX', 'PPIIHELX', 'STRAND', 'BRIDGE', 'TURN', 'BEND', 'unassigned', 'LOOP', 'IDR'):
+            sec_ids.append(item)
+        elif item.startswith('IPR'):
+            domain_ids.append(item)
+        else:
+            protein_ids.append(item)
+    
+    if not any([ptm_ids, AA_ids, sec_ids, domain_ids, protein_ids]):
         return protein_id_annotation_position
     
     result = {}
@@ -282,6 +293,10 @@ def filter_positions_with_all_categories(protein_id_annotation_position, sec_ids
     for protein_id, annotations in proteins_to_process.items():
         # Create position sets for each annotation type we need to filter for
         positions_by_type = {}
+        if ptm_ids:
+            positions_by_type['ptm'] = set()
+        if AA_ids:
+            positions_by_type['AA'] = set()
         if sec_ids:
             positions_by_type['sec'] = set()
         if domain_ids:
@@ -291,13 +306,29 @@ def filter_positions_with_all_categories(protein_id_annotation_position, sec_ids
         position_annotations = {}
         
         # Process all annotations in this protein
-        for annotation, positions in annotations.items():           
+        for annotation, positions in annotations.items():
+            # Check if this is a ptm we're interested in
+            if ptm_ids and annotation in ptm_ids:
+                for pos in positions:
+                    positions_by_type['ptm'].add(pos)
+                    if pos not in position_annotations:
+                        position_annotations[pos] = {'ptm': [], 'AA': [], 'sec': [], 'domain': []}
+                    position_annotations[pos]['ptm'].append(annotation)
+            
+            # Check if this is an AA annotation we're interested in
+            elif AA_ids and annotation in AA_ids:
+                for pos in positions:
+                    positions_by_type['AA'].add(pos)
+                    if pos not in position_annotations:
+                        position_annotations[pos] = {'ptm': [], 'AA': [], 'sec': [], 'domain': []}
+                    position_annotations[pos]['AA'].append(annotation)            
+                    
             # Check if this is a secondary structure annotation we're interested in
-            if sec_ids and annotation in sec_ids:
+            elif sec_ids and annotation in sec_ids:
                 for pos in positions:
                     positions_by_type['sec'].add(pos)
                     if pos not in position_annotations:
-                        position_annotations[pos] = {'aa': [], 'sec': [], 'domain': []}
+                        position_annotations[pos] = {'ptm': [], 'AA': [], 'sec': [], 'domain': []}
                     position_annotations[pos]['sec'].append(annotation)
             
             # Check if this is a domain annotation we're interested in
@@ -305,7 +336,7 @@ def filter_positions_with_all_categories(protein_id_annotation_position, sec_ids
                 for pos in positions:
                     positions_by_type['domain'].add(pos)
                     if pos not in position_annotations:
-                        position_annotations[pos] = {'aa': [], 'sec': [], 'domain': []}
+                        position_annotations[pos] = {'ptm': [], 'AA': [], 'sec': [], 'domain': []}
                     position_annotations[pos]['domain'].append(annotation)
         
         # Find positions that exist in all requested annotation types
@@ -337,14 +368,14 @@ def filter_positions_with_all_categories(protein_id_annotation_position, sec_ids
     
     return result
 
-def convert_to_cross_reference_format(original_dict, aa_dict):
+def convert_to_cross_reference_format(protein_id_annotation_position, protein_id_position_AA):
     """
     Create cross-reference dictionary mapping (protein_id, position) tuples to amino acids
     """
     result = {}
     
     # Process each entry in the amino acid dictionary
-    for key, amino_acid in aa_dict.items():
+    for key, amino_acid in protein_id_position_AA.items():
         # Parse the protein ID and position from the key
         parts = key.split('_')
         if len(parts) != 2:
@@ -357,22 +388,20 @@ def convert_to_cross_reference_format(original_dict, aa_dict):
             continue
         
         # Check if this protein exists in the original dictionary
-        if protein_id in original_dict:
+        if protein_id in protein_id_annotation_position:
             # Check if this amino acid and position exist in the original annotations
-            if amino_acid in original_dict[protein_id]:
-                if position in original_dict[protein_id][amino_acid]:
+            if amino_acid in protein_id_annotation_position[protein_id]:
+                if position in protein_id_annotation_position[protein_id][amino_acid]:
                     # Add to result dictionary
                     result[(protein_id, position)] = amino_acid
     
     return result
     
 def perform_enrichment_analysis(
-    x_types: str,
-    y_types: str,
-    modifiability: dict = {},
-    sec_ids: list = [],
-    domain_ids: list = [],
-    protein_ids: list = []
+    x_types: set,
+    y_types: set,
+    filters: list,
+    modifiability: dict
 ) -> pd.DataFrame:
     """
     Perform enrichment analysis to evaluate which modifications or annotations (x_types) are enriched / depleted 
@@ -383,117 +412,98 @@ def perform_enrichment_analysis(
 
     Parameters
     ----------
-    x_types : str
-        The "dependent data type" for enrichment analysis. Must be one of: 'ptm_name', 'AA', 'sec', or 'domain'.
-        Do not specify individual or selected annotations; always test all annotations within a conformational level 
-        to allow for multiple testing correction.
+    x_types : set
+        The "dependent data type" for enrichment analysis.
     
-    y_types : str
-        The "independent data type" for enrichment analysis. Must be one of: 'ptm_name', 'AA', 'sec', or 'domain'.
+    y_types : set
+        The "independent data type" for enrichment analysis.
     
+    filters: list, optional
+        Lists specifying which amino acids, secondary structures, domains, or proteins to include in the analysis.
+        By default, all lists are empty, resulting in a proteome-wide analysis.
+        
     modifiability : dict, optional
         Dictionary specifying eligible amino acids for each modification type. 
         Example: {'[21]Phospho': ['S', 'T', 'Y']}.
         If empty, all amino acids evaluated by ionbot are considered modifiable for each ptm_name.
-    
-    sec_ids, domain_ids, protein_ids : list, optional
-        Lists specifying which amino acids, secondary structures, domains, or proteins to include in the analysis.
-        By default, all lists are empty, resulting in a proteome-wide analysis.
-    
-    Notes
-    -----
-    - The input must represent a "hierarchical biological question".
-    - For example, if 'domains' are specified as x_types, only 'protein_ids' can be provided; 
-      do not specify 'lower conformational annotations' like sec_ids or domain_ids in this case.
 
     Returns
     -------
     pd.DataFrame
         A DataFrame containing the results of the enrichment analysis.
     """
-
-    total_start_time = time.time()
-
-    # When building the string, clean the modification name and join with hyphens
-    def clean_ptm(ptm):
-        return re.sub(r'^\[\d+\]', '', ptm)
-    
-    modifiability_str = "_".join(
-        "-".join([clean_ptm(key)] + values)
-        for key, values in modifiability.items()
-    )
-    
-    d_part = x_types + (f'_{modifiability_str}' if modifiability else '')
-    IN_part = f"{d_part}_IN_{y_types}"
-    
-    # Handle ID lists and proteome-wide designation
-    id_list = sec_ids + domain_ids + protein_ids
-    if not id_list:
-        id_list.append("proteome_wide")
-    
-    # Limit filename elements to 5 and add "_and_more" if needed
-    max_elements = 5
-    if len(id_list) > max_elements:
-        truncated_ids = id_list[:max_elements]
-        suffix = "_and_more"
-    else:
-        truncated_ids = id_list
-        suffix = ""
-    
-    # Create final filename
-    output_filename = f"{IN_part}_{'_'.join(truncated_ids)}{suffix}.csv"
-    
-    # Load data
-    with open('data/protein_id_annotation_position.json') as file:
-        protein_id_annotation_position = json.load(file)
-        
-    protein_id_annotation_position = filter_positions_with_all_categories(
-        protein_id_annotation_position,
-        sec_ids,
-        domain_ids,
-        protein_ids
-    )
-    with open('data/protein_id_position_AA.json') as position_file:
-        protein_id_position_AA = json.load(position_file) 
-    protein_id_position_AA = convert_to_cross_reference_format(protein_id_annotation_position, protein_id_position_AA)
-    print(f"Loaded annotation data for {len(protein_id_annotation_position)} proteins")
     ptm_name_AA = {}
-    if x_types == 'ptm_name':
+    if x_types[0].startswith('['):
         with open('data/ptm_name_AA.json') as file:
             ptm_name_AA = json.load(file)
         if len(modifiability) != 0:
             for d in modifiability:
                 ptm_name_AA[d] = modifiability[d]
-    
-    protein_ids = tuple(protein_id_annotation_position.keys()) # required for cache
-    @lru_cache(maxsize=256)
-    def update_types(types, protein_ids):
-        """Updates the given types list"""
-        if types == 'domain':
-            return tuple(sorted({annotation for annotations in protein_id_annotation_position.values() 
-                          for annotation in annotations if 'IPR' in annotation}))
-        elif types == 'sec':
-            return ('3₁₀-helix', 'α-helix', 'π-helix', 'PPII-helix', 'ß-strand', 'ß-bridge', 'turn', 'bend', 'unassigned', 'loop', 'IDR')
-        elif types == 'AA':
-            return ('A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y') 
-        elif types == 'ptm_name':
-            with open('data/ptm_name_AA.json') as file:
-                ptm_name_AA = json.load(file)
-            return tuple(sorted(ptm_name_AA))
                 
-        # Custom sort function for original types
-        return tuple(sorted(types, key=lambda x: int(x.split(']')[0][1:]) if x.startswith('[') else x))
-    
+    # Mapping for secondary structure elements
+    sec_mapping = {
+        '310HELX': '3₁₀-helix',
+         'AHELX': 'α-helix',
+         'PIHELX': 'π-helix',
+         'PPIIHELX': 'PPII-helix',
+         'STRAND': 'ß-strand',
+         'BRIDGE': 'ß-bridge',
+         'TURN': 'turn',
+         'BEND': 'bend',
+         'unassigned': 'unassigned',
+         'LOOP': 'loop',
+         'IDR': 'IDR'
+    }
+        
+    mapped_x = [sec_mapping[sec] for sec in x_types if sec in sec_mapping]
+    if mapped_x:
+        x_types = mapped_x
+    # else: x_types remains unchanged
+
+    mapped_y = [sec_mapping[sec] for sec in y_types if sec in sec_mapping]
+    if mapped_y:
+        y_types = mapped_y
+    # else: y_types remains unchanged
+
     # Update types - convert to tuples for caching
-    x_types = update_types(x_types, protein_ids)
-    y_types = update_types(y_types, protein_ids)
-    n = len(protein_id_position_AA)
+    x_types = tuple(sorted(x_types, key=lambda x: int(x.split(']')[0][1:]) if x.startswith('[') else x))
+    y_types = tuple(sorted(y_types, key=lambda x: int(x.split(']')[0][1:]) if x.startswith('[') else x))
     
+    # Check if there exists a file in which user's request has already been calculated
+    file_path = 'data/requests.csv'
+    request = str([x_types, y_types, filters, modifiability])
+
+    if os.path.exists(file_path):
+        with open(file_path, 'r') as f:
+            requests = json.load(f)
+        # get index of the request and the corresponding filename (its index)
+        idx = requests.index(request)
+        filename = f'results_protmodcon/{idx}.csv'
+        print(f"Results saved to {filename}")
+        return # stop function
+
+    total_start_time = time.time()
+   
+    # Load data
+    with open('data/protein_id_annotation_position.json') as file:
+        protein_id_annotation_position = json.load(file)
+        
+    protein_id_annotation_position = filter_positions_with_all_categories(protein_id_annotation_position, filters)
+
+    with open('data/protein_id_position_AA.json') as position_file:
+        protein_id_position_AA = json.load(position_file)
+        
+    protein_id_position_AA = convert_to_cross_reference_format(protein_id_annotation_position, protein_id_position_AA)
+    print(f"Loaded annotation data for {len(protein_id_annotation_position)} proteins")
+    
+    protein_ids = tuple(protein_id_annotation_position.keys()) # tuple required for cache
+    
+    n = len(protein_id_position_AA)
     nm_per_d, nc_per_i, k_per_d_i = precompute_nm_nc_k(
         x_types, y_types, ptm_name_AA, 
         protein_id_annotation_position, protein_id_position_AA
     )
-    
+
     print("Processing data...")
     start_time = time.time()
           
@@ -526,50 +536,50 @@ def perform_enrichment_analysis(
             by=['x', 'y'], 
             key=lambda x: x.map(custom_sort)
         )
-        # Define the directory and output file path
-        output_dir = 'results_protmodcon'
-        output_path = os.path.join(output_dir, output_filename)
-        
-        # Create the directory if it doesn't exist
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-        
-        # Save the results
-        results_df.to_csv(output_path, index=False)
-        print(f"Results saved to {output_path}")
-    
+
+        try:
+            with open(file_path, 'r') as f:
+                requests = json.load(f)
+            # get index of the request and the corresponding filename (its index)
+            idx = requests.index(request)
+            filename = f'results_protmodcon/{idx}.csv'
+            results_df.to_csv(filename, index=False)
+            print(f"Results saved to {filename}")
+        except (json.JSONDecodeError, FileNotFoundError): # If file is empty, insert first request
+            with open(file_path, 'w') as f:
+                json.dump(request, f)
+            filename = f'results_protmodcon/0.csv'
+            results_df.to_csv(filename, index=False)
+            print(f"Results saved to {filename}")
+            
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='protmodcon: Comprehensive Analysis of Protein Modifications from a Conformational Perspective',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=textwrap.dedent('''\
             Example:
-                python protmodcon.py --x-types ptm_name --y-types sec --protein-ids P05067 --modifiability "[21]Phospho:S,T,Y"
+                python protmodcon.py --x-types [21]Phospho --y-types AHELX
+                sec options = 310HELX, AHELX, PIHELX, PPIIHELX, STRAND, BRIDGE, TURN, BEND, unassigned, LOOP, IDR
             ''')
     )
     parser.add_argument(
-        '--x-types', required=True, choices=['ptm_name', 'AA', 'sec', 'domain'],
-        help='First data type for enrichment analysis, arbitrarily indicated by x. Choose exactly one of: ptm_name, AA, sec.'
+        '--x-types', required=True, nargs='+',
+        help='First data type for enrichment analysis, arbitrarily indicated by x.'
     )
     parser.add_argument(
-        '--y-types', required=True, choices=['ptm_name', 'AA', 'sec', 'domain'],
-        help='Second data type for enrichment analysis, arbitrarily indicated by y. Choose exactly one of: AA, sec, domain.'
+        '--y-types', required=True, nargs='+',
+        help='Second data type for enrichment analysis, arbitrarily indicated by y.'
     )
     parser.add_argument(
-        '--sec-ids', nargs='*', default=[],
-        help='Optional: List of secondary structure IDs to include, e.g. --sec-ids 310HELX unassigned. Choose one (or more) of 310HELX, AHELX, PIHELX, PPIIHELX, STRAND, BRIDGE, TURN, BEND, unassigned, LOOP, IDR.'
+        '--filters', nargs='*', default=[],
+        help='Optional: list of filters'
     )
     parser.add_argument(
-        '--domain-ids', nargs='*', default=[],
-        help='Optional: List of domain IDs (from InterPro) to include, e.g. --domain-ids IPR002223 IPR003165. 7,406 domain-ids can be chosen, which can be found as keys in data/domain_descriptions.json.'
-    )
-    parser.add_argument(
-        '--protein-ids', nargs='*', default=[],
-        help='Optional: List of protein IDs (from UniProt) to include, e.g. --protein-ids P05067 Q9Y6K9. 20,059 protein-ids can be chosen, which can be found as keys in data/protein_id_annotation_position.json.'
-    )
-    parser.add_argument(
-        '--modifiability', nargs='*', default=[],
-        help='Optional: Modifiability of amino acids per modification type. Format: "[Unimod accession]name:AA1,AA2", where the name corresponds to the Unimod PSI-MS Name or, if unavailable, the Unimod Interim name, e.g. --modifiability "[21]Phospho:S,T,Y" (double quotes mandatory). Valid ptm_name-AA combinations can be found as keys in data/ptm_name_AA.json.'
+        '--modifiability', nargs='*',
+        help='''\
+        Optional: Modifiability of amino acids per modification type. Format: "[Unimod accession]name:AA1,AA2", where the name corresponds to the Unimod
+        PSI-MS Name or, if unavailable, the Unimod Interim name, e.g. --modifiability "[21]Phospho:S,T,Y" (double quotes mandatory). Valid ptm_name-AA 
+        combinations can be found as keys in data/ptm_name_AA.json.'''
     )
 
     args = parser.parse_args()
@@ -592,18 +602,14 @@ if __name__ == "__main__":
     # Process modifiability argument if provided
     modifiability = {}
     if args.modifiability:
-        # Parse modifiability strings like "[21]Phospho:S,T,Y" (double quotes inclusive)
         for mod_str in args.modifiability:
-            if ':' in mod_str:
-                ptm, aas = mod_str.split(':')
-                modifiability[ptm] = aas.split(',')
+            ptm, aas = mod_str.split(':')
+            modifiability[ptm] = aas.split(',')
     
     # Run enrichment analysis
     perform_enrichment_analysis(
         x_types=args.x_types,
         y_types=args.y_types,
-        modifiability=modifiability,
-        sec_ids=args.sec_ids,
-        domain_ids=args.domain_ids,
-        protein_ids=args.protein_ids
+        filters=args.filters,
+        modifiability=modifiability
     )

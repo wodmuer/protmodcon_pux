@@ -554,13 +554,14 @@ if __name__ == "__main__":
         '--data', required=True,
         help='Path to data to be visualised. Should be output of the protmodcon function.'
     )
-    parser.add_argument('--x', type=str, required=True,
-        help='''Comma-separated list for x. A maximum of five annotations may be specified within any single annotation category (ptm_name, AA, sec, domain). For the ptm_name category, annotations must be formatted using double quotes, like "[Unimod accession]name". The name should correspond to the Unimod PSI-MS Name or, if that is unavailable, the Unimod Interim name. For example: "[1]Acetyl" or "[21]Phospho". Valid ptm_names can be found as keys in data/ptm_name_AA.json. For the AA category, specify amino acids using their single-letter codes, e.g., C S. For the sec category, indicate secondary structure elements such as 310HELX, AHELX, PIHELX, PPIIHELX, STRAND, BRIDGE, TURN, BEND, unassigned, LOOP, IDR. If only a single annotation (x) is provided, a different plot type will be generated compared to when multiple annotations (up to five) are specified. If you want the multiple-like visualisation for a single annotation, you can add an invalid argument to --x (next to your argument of interest).
+    parser.add_argument(
+        '--x', required=True, nargs='*',
+        help='''A maximum of five annotations may be specified within any single annotation category (ptm_name, AA, sec, domain). For the ptm_name category, annotations must be formatted using double quotes, like "[Unimod accession]name". The name should correspond to the Unimod PSI-MS Name or, if that is unavailable, the Unimod Interim name. For example: "[1]Acetyl" or "[21]Phospho". Valid ptm_names can be found as keys in data/ptm_name_AA.json. For the AA category, specify amino acids using their single-letter codes, e.g., C S. For the sec category, indicate secondary structure elements such as 310HELX, AHELX, PIHELX, PPIIHELX, STRAND, BRIDGE, TURN, BEND, unassigned, LOOP, IDR. If only a single annotation (x) is provided, a different plot type will be generated compared to when multiple annotations (up to five) are specified. If you want the multiple-like visualisation for a single annotation, you can add an invalid argument to --x (next to your argument of interest).
         '''
     )
     parser.add_argument(
-        '--y', type=str, required=False,
-        help='Optional: Comma-separated list for y. Regions of interest to be visualised. This pre-filters the provided data to only show enrichment/depletions in the regions of interest.'
+        '--y', default=set(), nargs='*',
+        help='Optional: regions of interest to be visualised. This pre-filters the provided data to only show enrichment/depletions in the regions of interest.'
     )
     parser.add_argument(
         '--BH', default=0.01,
@@ -572,11 +573,6 @@ if __name__ == "__main__":
     )
     
     args = parser.parse_args()
-    def parse_list(arg):
-    return [item.strip() for item in arg.split(',') if item.strip()]
-
-    x_data = parse_list(args.x)
-    y_data = parse_list(args.y)
     
     if len(set(args.x)) == 1:
         fig = single_vis(
