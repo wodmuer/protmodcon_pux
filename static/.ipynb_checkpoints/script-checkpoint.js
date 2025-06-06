@@ -2,82 +2,23 @@ document.addEventListener('DOMContentLoaded', function() {
     let validPTMs = [];
     let validDomains = [];
     let validIDs = [];  // valid protein ids
-    const hierarchy = ['ptm_name', 'AA', 'sec', 'domain'];
+    const hierarchy = ['ptm', 'AA', 'sec', 'domain', 'protein'];
 
     // Mapping for corresponding options between X and Y dropdowns
     const xToYMap = {
-        'ptm_name': 'PTM',
+        'ptm': 'ptm',
         'AA': 'AA',
         'sec': 'sec',
-        'domain': 'domain'
+        'domain': 'domain',
+        'protein':'protein'
     };
     const yToXMap = {
-        'PTM': 'ptm_name',
+        'ptm': 'ptm',
         'AA': 'AA',
         'sec': 'sec',
-        'domain': 'domain'
+        'domain': 'domain',
+        'protein':'protein'
     };
-
-    function getHighestHierarchy(x, y) {
-        const levels = [x, y].filter(Boolean).map(val => hierarchy.indexOf(val));
-        if (levels.length === 0) return -1; // No selection
-        return Math.max(...levels);
-    }
-
-    function getValidZOptions(x, y) {
-        const highest = getHighestHierarchy(x, y);
-        const validZ = [];
-        // z must be strictly higher (index greater) than highest selected x or y
-        if (highest < 0) {
-            // No selection in x or y, allow sec, domain, protein
-            validZ.push('sec', 'domain', 'protein');
-        } else {
-            for (let i = highest + 1; i < hierarchy.length; ++i) {
-                if (hierarchy[i] !== 'ptm_name' && hierarchy[i] !== 'AA') {
-                    validZ.push(hierarchy[i]);
-                }
-            }
-            validZ.push('protein'); // protein always valid
-        }
-        return validZ;
-    }
-
-
-    // Function to update Y options based on X selection
-    function updateYOptions(selectedXValue) {
-        const ySelect = document.getElementById('y');
-        const currentYValue = ySelect.value;
-        
-        // Reset all Y options to enabled first
-        Array.from(ySelect.options).forEach(option => {
-            option.disabled = false;
-            option.style.color = '';
-            // Remove any previously added text
-            if (option.textContent.includes(' (already selected')) {
-                option.textContent = option.textContent.split(' (already selected')[0];
-            }
-        });
-        
-        // Disable the option that corresponds to X selection
-        if (selectedXValue && selectedXValue !== '') {
-            const correspondingYValue = xToYMap[selectedXValue];
-            if (correspondingYValue) {
-                Array.from(ySelect.options).forEach(option => {
-                    if (option.value === correspondingYValue) {
-                        option.disabled = true;
-                        option.style.color = '#666';
-                        option.textContent += ' (already selected in first dropdown)';
-                    }
-                });
-            }
-            
-            // If Y currently has the same corresponding value as X, reset Y selection
-            if (currentYValue === correspondingYValue) {
-                ySelect.value = '';
-                hideAllYInputs();
-            }
-        }
-    }
 
     // Function to update X options based on Y selection
     function updateXOptions(selectedYValue) {
@@ -115,22 +56,41 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function updateZOptions(x, y) {
-        const zSelect = document.getElementById('z');
-        const validZ = getValidZOptions(x, y);
-        Array.from(zSelect.options).forEach(option => {
-            // Only enable if in validZ
-            option.disabled = !validZ.includes(option.value);
-            // Optionally, gray out disabled options
-            option.style.color = option.disabled ? '#666' : '';
+    // Function to update Y options based on X selection
+    function updateYOptions(selectedXValue) {
+        const ySelect = document.getElementById('y');
+        const currentYValue = ySelect.value;
+        
+        // Reset all Y options to enabled first
+        Array.from(ySelect.options).forEach(option => {
+            option.disabled = false;
+            option.style.color = '';
+            // Remove any previously added text
+            if (option.textContent.includes(' (already selected')) {
+                option.textContent = option.textContent.split(' (already selected')[0];
+            }
         });
-        // If current selection is now invalid, reset it
-        if (!validZ.includes(zSelect.value)) {
-            zSelect.value = '';
-            hideAllZInputs();
+        
+        // Disable the option that corresponds to X selection
+        if (selectedXValue && selectedXValue !== '') {
+            const correspondingYValue = xToYMap[selectedXValue];
+            if (correspondingYValue) {
+                Array.from(ySelect.options).forEach(option => {
+                    if (option.value === correspondingYValue) {
+                        option.disabled = true;
+                        option.style.color = '#666';
+                        option.textContent += ' (already selected in first dropdown)';
+                    }
+                });
+            }
+            
+            // If Y currently has the same corresponding value as X, reset Y selection
+            if (currentYValue === correspondingYValue) {
+                ySelect.value = '';
+                hideAllYInputs();
+            }
         }
     }
-
 
     // Function to hide all X input fields
     function hideAllXInputs() {
@@ -138,6 +98,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('x_aa_checkboxes').style.display = 'none';
         document.getElementById('x_sec_checkboxes').style.display = 'none';
         document.getElementById('x_domain_input').style.display = 'none';
+        document.getElementById('x_protein_input').style.display = 'none';
     }
 
     // Function to hide all Y input fields
@@ -146,6 +107,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('y_aa_checkboxes').style.display = 'none';
         document.getElementById('y_sec_checkboxes').style.display = 'none';
         document.getElementById('y_domain_input').style.display = 'none';
+        document.getElementById('y_protein_input').style.display = 'none';
     }    
 
     // Function to hide all Z input fields
@@ -159,7 +121,6 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('z').addEventListener('change', function() {
         // Hide all z inputs first
         hideAllZInputs();
-        
         // Show the appropriate input based on selection
         if (this.value === 'sec') {
             document.getElementById('z_sec_checkboxes').style.display = 'block';
@@ -179,7 +140,7 @@ document.addEventListener('DOMContentLoaded', function() {
             ]);
             validPTMs = ptms;
             validDomains = domains;
-            validIDs = proteins
+            validIDs = proteins;
         } catch (error) {
             console.error('Error loading validation lists:', error);
         }
@@ -244,12 +205,20 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('y_domain-overlay').scrollLeft = this.scrollLeft;
     });
 
-    // z Domain overlay
-    document.getElementById('z_domain_text').addEventListener('input', function() {
-        renderOverlay('z_domain_text', 'z_domain-overlay', ' ', validDomains);
+    // x protein overlay
+    document.getElementById('x_protein_text').addEventListener('input', function() {
+        renderOverlay('x_protein_text', 'x_protein-overlay', ' ', validIDs);
     });
-    document.getElementById('z_domain_text').addEventListener('scroll', function() {
-        document.getElementById('z_domain-overlay').scrollLeft = this.scrollLeft;
+    document.getElementById('x_protein_text').addEventListener('scroll', function() {
+        document.getElementById('x_protein-overlay').scrollLeft = this.scrollLeft;
+    });
+
+    // y protein overlay
+    document.getElementById('y_protein_text').addEventListener('input', function() {
+        renderOverlay('y_protein_text', 'y_protein-overlay', ' ', validIDs);
+    });
+    document.getElementById('y_protein_text').addEventListener('scroll', function() {
+        document.getElementById('y_protein-overlay').scrollLeft = this.scrollLeft;
     });
 
     // z protein overlay
@@ -279,7 +248,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.getElementById('x').addEventListener('change', function() {
         hideAllXInputs();
-        if (this.value === 'ptm_name') {
+        if (this.value === 'ptm') {
             document.getElementById('x_ptm_input').style.display = 'block';
         } else if (this.value === 'AA') {
             document.getElementById('x_aa_checkboxes').style.display = 'block';
@@ -287,15 +256,15 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('x_sec_checkboxes').style.display = 'block';
         } else if (this.value === 'domain') {
             document.getElementById('x_domain_input').style.display = 'block';
+        } else if (this.value === 'protein') {
+            document.getElementById('x_protein_input').style.display = 'block';
         }
         updateYOptions(this.value);
-        updateZOptions(this.value, document.getElementById('y').value);
 });
-
 
     document.getElementById('y').addEventListener('change', function() {
         hideAllYInputs();
-        if (this.value === 'ptm_name') {
+        if (this.value === 'ptm') {
             document.getElementById('y_ptm_input').style.display = 'block';
         } else if (this.value === 'AA') {
             document.getElementById('y_aa_checkboxes').style.display = 'block';
@@ -303,31 +272,28 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('y_sec_checkboxes').style.display = 'block';
         } else if (this.value === 'domain') {
             document.getElementById('y_domain_input').style.display = 'block';
+        } else if (this.value === 'protein') {
+            document.getElementById('y_protein_input').style.display = 'block';
         }
         updateXOptions(this.value);
-        updateZOptions(document.getElementById('x').value, this.value);
 });
 
-
-        // In x change event:
+    // In x change event:
     updateYOptions(this.value);
-    updateZOptions(this.value, document.getElementById('y').value);
     
     // In y change event:
     updateXOptions(this.value);
-    updateZOptions(document.getElementById('x').value, this.value);
-
-
+    
     // Select all checkboxes for x AA
     document.getElementById('x_aa_all').addEventListener('change', function() {
-        const checkboxes = document.querySelectorAll('#x_aa_checkboxes input[type="checkbox"][name="x_data[]"]');
+        const checkboxes = document.querySelectorAll('#x_aa_checkboxes input[type="checkbox"][name="x_types[]"]');
         checkboxes.forEach(checkbox => checkbox.checked = this.checked);
     });
 
     // Uncheck "Select All" if any individual box is unchecked
-    document.querySelectorAll('#x_aa_checkboxes input[type="checkbox"][name="x_data[]"]').forEach(checkbox => {
+    document.querySelectorAll('#x_aa_checkboxes input[type="checkbox"][name="x_types[]"]').forEach(checkbox => {
         checkbox.addEventListener('change', function() {
-            const all = document.querySelectorAll('#x_aa_checkboxes input[type="checkbox"][name="x_data[]"]');
+            const all = document.querySelectorAll('#x_aa_checkboxes input[type="checkbox"][name="x_types[]"]');
             const allChecked = Array.from(all).every(cb => cb.checked);
             /*document.getElementById('x_aa_all').checked = allChecked;*/
         });
@@ -335,14 +301,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Select all checkboxes for x Sec
     document.getElementById('x_sec_all').addEventListener('change', function() {
-        const checkboxes = document.querySelectorAll('#x_sec_checkboxes input[type="checkbox"][name="x_data[]"]');
+        const checkboxes = document.querySelectorAll('#x_sec_checkboxes input[type="checkbox"][name="x_types[]"]');
         checkboxes.forEach(checkbox => checkbox.checked = this.checked);
     });
 
     // Uncheck "Select All" if any individual box is unchecked 
-    document.querySelectorAll('#x_sec_checkboxes input[type="checkbox"][name="x_data[]"]').forEach(checkbox => {
+    document.querySelectorAll('#x_sec_checkboxes input[type="checkbox"][name="x_types[]"]').forEach(checkbox => {
         checkbox.addEventListener('change', function() {
-            const all = document.querySelectorAll('#x_sec_checkboxes input[type="checkbox"][name="x_data[]"]');
+            const all = document.querySelectorAll('#x_sec_checkboxes input[type="checkbox"][name="x_types[]"]');
             const allChecked = Array.from(all).every(cb => cb.checked); 
             document.getElementById('x_sec_all').checked = allChecked;
         });
@@ -350,14 +316,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Select all checkboxes for y AA
     document.getElementById('y_aa_all').addEventListener('change', function() {
-        const checkboxes = document.querySelectorAll('#y_aa_checkboxes input[type="checkbox"][name="y_data[]"]');
+        const checkboxes = document.querySelectorAll('#y_aa_checkboxes input[type="checkbox"][name="y_types[]"]');
         checkboxes.forEach(checkbox => checkbox.checked = this.checked);
     });
 
+
     // Uncheck "Select All" if any individual box is unchecked
-    document.querySelectorAll('#y_aa_checkboxes input[type="checkbox"][name="y_data[]"]').forEach(checkbox => {
+    document.querySelectorAll('#y_aa_checkboxes input[type="checkbox"][name="y_types[]"]').forEach(checkbox => {
         checkbox.addEventListener('change', function() {
-            const all = document.querySelectorAll('#y_aa_checkboxes input[type="checkbox"][name="y_data[]"]');
+            const all = document.querySelectorAll('#y_aa_checkboxes input[type="checkbox"][name="y_types[]"]');
             const allChecked = Array.from(all).every(cb => cb.checked);
             document.getElementById('y_aa_all').checked = allChecked;
         });
@@ -365,14 +332,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Select all checkboxes for y Sec
     document.getElementById('y_sec_all').addEventListener('change', function() {
-        const checkboxes = document.querySelectorAll('#y_sec_checkboxes input[type="checkbox"][name="y_data[]"]');
+        const checkboxes = document.querySelectorAll('#y_sec_checkboxes input[type="checkbox"][name="y_types[]"]');
         checkboxes.forEach(checkbox => checkbox.checked = this.checked);
     });
 
     // Uncheck "Select All" if any individual box is unchecked 
-    document.querySelectorAll('#y_sec_checkboxes input[type="checkbox"][name="y_data[]"]').forEach(checkbox => {
+    document.querySelectorAll('#y_sec_checkboxes input[type="checkbox"][name="y_types[]"]').forEach(checkbox => {
         checkbox.addEventListener('change', function() {
-            const all = document.querySelectorAll('#y_sec_checkboxes input[type="checkbox"][name="y_data[]"]');
+            const all = document.querySelectorAll('#y_sec_checkboxes input[type="checkbox"][name="y_types[]"]');
             const allChecked = Array.from(all).every(cb => cb.checked);
             document.getElementById('y_sec_all').checked = allChecked;
         });
@@ -392,11 +359,26 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('z_sec_all').checked = allChecked;
         });
     });
+    
+   function setupBulkSwitch(checkboxId, labelId) {
+  const checkbox = document.getElementById(checkboxId);
+  const label = document.getElementById(labelId);
+  if (checkbox && label) {
+    label.textContent = checkbox.checked ? 'Bulk' : 'Individual';
+    checkbox.addEventListener('change', function() {
+      label.textContent = this.checked ? 'Bulk' : 'Individual';
+    });
+  }
+}
+
+    // Now call for each pair:
+    setupBulkSwitch('x_bulk', 'switch-label-x');
+    setupBulkSwitch('y_bulk', 'switch-label-y');d
+
 
     // Initialize - hide all input fields
     hideAllXInputs();
     hideAllYInputs();
     hideAllZInputs();
-    updateZOptions('', '');
 
 });

@@ -20,8 +20,41 @@
 
         <div class="analysis-form">
             <form method="post" action="/results">
+                <div id="form-sections"></div>
+        <script>
+        function renderFormSection(id, label) {
+          return `
+            <div class="form-section">
+              <div class="row align-items-center">
+                <div class="col-auto">
+                  <label class="form-label">What is the enrichment/depletion of</label>
+                </div>
+                <div class="col-auto">
+                  <select name="${id}" id="${id}" class="form-select" required>
+                    <option value="" disabled selected>Select annotation type</option>
+                    <option value="ptm">PTM (Post-translational modification)</option>
+                    <option value="AA">Amino Acid</option>
+                    <option value="sec">Secondary Structure</option>
+                    <option value="domain">Protein Domain</option>
+                    <option value="protein">Protein ID (UniProt)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="${id}_bulk" name="${id}_bulk">
+                <label class="form-check-label" for="${id}_bulk">
+                  <span id="switch-label-${id}">${label}</span>
+                </label>
+              </div>
+            </div>
+          `;
+        }
+        document.getElementById('form-sections').innerHTML =
+          renderFormSection('x', 'Individual') +
+          renderFormSection('y', 'Individual');
+        </script>
+
                 <div class="form-section">
-                    <h5 class="mb-3"><i class="fas fa-search me-2"></i>Analysis Query</h5>
                     <div class="row align-items-center">
                         <div class="col-auto">
                             <label class="form-label">What is the enrichment/depletion of</label>
@@ -29,7 +62,167 @@
                         <div class="col-auto">
                             <select name="x" id="x" class="form-select" required>
                                 <option value="" disabled selected>Select annotation type</option>
-                                <option value="ptm_name">PTM (Post-translational modification)</option>
+                                <option value="ptm">PTM (Post-translational modification)</option>
+                                <option value="AA">Amino Acid</option>
+                                <option value="sec">Secondary Structure</option>
+                                <option value="domain">Protein Domain</option>
+                                <option value="protein">Protein ID (UniProt)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="x_bulk" name="x_bulk">
+                        <label class="form-check-label" for="x_bulk">
+                            <span id="switch-label-x">Individual</span>
+                        </label>
+                    </div>
+
+                    <div id="x_ptm_checkboxes" class="option-checkboxes">
+                        <div class="col-12 mb-2">
+                            <label class="form-check-label">
+                                <input type="checkbox" id="x_all" name="x_all" class="form-check-input">
+                                <strong>Select All</strong>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div id="x_ptm_input" class="ptm-input input-with-overlay">
+                        <div style="position:relative;">
+                            <div id="x_ptm-overlay" class="input-token-overlay"></div>
+                            <input type="text" id="x_ptm_text" name="x_types[]" class="form-control" placeholder="[1]Acetyl [21]Phospho [35]Oxidation" autocomplete="off">
+                        </div>
+                        <span class="ptm-hint">Enter PTM modifications separated by spaces, e.g. [1]Acetyl [21]Phospho [35]Oxidation. <br>Modifications are annotated as [Unimod accession]name, where the name corresponds to the Unimod PSI-MS Name or, if unavailable, the Unimod Interim name.</span>
+                    </div>
+                    
+                    <div id="x_aa_checkboxes" class="option-checkboxes">
+                        <div class="row">
+                            <div class="col-md-2 col-4">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="A" class="form-check-input">A (Ala)</label>
+                            </div>
+                            <div class="col-md-2 col-4">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="C" class="form-check-input">C (Cys)</label>
+                            </div>
+                            <div class="col-md-2 col-4">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="D" class="form-check-input">D (Asp)</label>
+                            </div>
+                            <div class="col-md-2 col-4">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="E" class="form-check-input">E (Glu)</label>
+                            </div>
+                            <div class="col-md-2 col-4">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="F" class="form-check-input">F (Phe)</label>
+                            </div>
+                            <div class="col-md-2 col-4">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="G" class="form-check-input">G (Gly)</label>
+                            </div>
+                            <div class="col-md-2 col-4">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="H" class="form-check-input">H (His)</label>
+                            </div>
+                            <div class="col-md-2 col-4">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="I" class="form-check-input">I (Ile)</label>
+                            </div>
+                            <div class="col-md-2 col-4">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="K" class="form-check-input">K (Lys)</label>
+                            </div>
+                            <div class="col-md-2 col-4">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="L" class="form-check-input">L (Leu)</label>
+                            </div>
+                            <div class="col-md-2 col-4">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="M" class="form-check-input">M (Met)</label>
+                            </div>
+                            <div class="col-md-2 col-4">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="N" class="form-check-input">N (Asn)</label>
+                            </div>
+                            <div class="col-md-2 col-4">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="P" class="form-check-input">P (Pro)</label>
+                            </div>
+                            <div class="col-md-2 col-4">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="Q" class="form-check-input">Q (Gln)</label>
+                            </div>
+                            <div class="col-md-2 col-4">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="R" class="form-check-input">R (Arg)</label>
+                            </div>
+                            <div class="col-md-2 col-4">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="S" class="form-check-input">S (Ser)</label>
+                            </div>
+                            <div class="col-md-2 col-4">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="T" class="form-check-input">T (Thr)</label>
+                            </div>
+                            <div class="col-md-2 col-4">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="V" class="form-check-input">V (Val)</label>
+                            </div>
+                            <div class="col-md-2 col-4">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="W" class="form-check-input">W (Trp)</label>
+                            </div>
+                            <div class="col-md-2 col-4">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="Y" class="form-check-input">Y (Tyr)</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="x_sec_checkboxes" class="option-checkboxes">
+                        <div class="row">
+                            <div class="col-md-3 col-6">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="3₁₀-helix" class="form-check-input">3₁₀-helix</label>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="α-helix" class="form-check-input">α-helix</label>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="π-helix" class="form-check-input">π-helix</label>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="PPII-helix" class="form-check-input">PPII-helix</label>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="ß-bridge" class="form-check-input">ß-bridge</label>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="ß-strand" class="form-check-input">ß-strand</label>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="turn" class="form-check-input">turn</label>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="bend" class="form-check-input">bend</label>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="loop" class="form-check-input">loop</label>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="unassigned" class="form-check-input">unassigned</label>
+                            </div>
+                            <div class="col-md-3 col-6">
+                                <label class="form-check-label"><input type="checkbox" name="x_types[]" value="IDR" class="form-check-input">IDR</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="x_domain_input" class="domain-input input-with-overlay">
+                        <div style="position:relative;">
+                            <div id="x_domain-overlay" class="input-token-overlay"></div>
+                            <input type="text" id="x_domain_text" name="x_types[]" class="form-control" placeholder="e.g. IPR000001 IPR000007" autocomplete="off">
+                        </div>
+                        <span class="domain-hint">Enter protein domain(s) separated by spaces, e.g. IPR000001 IPR000007.</span>
+                    </div>
+                        
+                    <div id="x_protein_input" class="protein-input input-with-overlay">
+                        <div style="position:relative;">
+                            <div id="x_protein-overlay" class="input-token-overlay"></div>
+                            <input type="text" id="x_protein_text" name="x_types[]" class="form-control" placeholder="e.g. P05067 P41227" autocomplete="off">
+                        </div>
+                        <span class="protein-hint">Enter protein IDs (UniProt) separated by spaces, e.g. P05067 P41227.</span>
+                    </div>
+                    
+                    <!-- y -->
+                    <br>
+                    <div class="row align-items-center">
+                        <div class="col-auto">
+                            <label class="form-label">in</label>
+                        </div>
+                        <div class="col-auto">
+                            <select name="y" id="y" class="form-select" required>
+                                <option value="" disabled selected>Select annotation type</option>
+                                <option value="ptm">PTM (Post-translational modification)</option>
                                 <option value="AA">Amino Acid</option>
                                 <option value="sec">Secondary Structure</option>
                                 <option value="domain">Protein Domain</option>
@@ -38,192 +231,91 @@
                         </div>
                     </div>
 
-                    <!-- PTM input for x -->
-                    <div id="x_ptm_input" class="ptm-input input-with-overlay" style="position: relative;">
-                        <label class="form-label">PTM Modifications</label>
-                        <div style="position:relative;">
-                            <div id="x_ptm-overlay" class="input-token-overlay"></div>
-                            <input type="text" id="x_ptm_text" name="x_data[]" class="form-control" placeholder="e.g. [1]Acetyl [21]Phospho [35]Oxidation" autocomplete="off">
-                        </div>
-                        <span class="ptm-hint">Enter PTM modifications separated by spaces (e.g. [1]Acetyl [21]Phospho [35]Oxidation)</span>
-                    </div>
-
-                     <!-- Domain input for x -->
-                    <div id="x_domain_input" class="domain-input input-with-overlay" style="position: relative;">
-                        <div style="position:relative;">
-                            <div id="x_domain-overlay" class="input-token-overlay"></div>
-                            <input type="text" id="x_domain_text" name="x_data[]" class="form-control" placeholder="e.g. IPR000001 IPR000007" autocomplete="off">
-                        </div>
-                        <span class="domain-hint">Enter protein domain(s) separated by spaces (e.g. IPR000001 IPR000007)</span>
-                    </div>
-                    
-                    <!-- AA checkboxes for x -->
-                    <div id="x_aa_checkboxes" class="option-checkboxes">
-                        <h6 class="mb-3">Select Amino Acids:</h6>
-                        <div class="row">
-                            <div class="col-12 mb-2">
-                                <label class="form-check-label">
-                                    <input type="checkbox" id="x_aa_all" class="form-check-input">
-                                    <strong>Select All</strong>
-                                </label>
-                            </div>
-                            <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="A" class="form-check-input">A (Ala)</label>
-                            </div>
-                            <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="C" class="form-check-input">C (Cys)</label>
-                            </div>
-                            <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="D" class="form-check-input">D (Asp)</label>
-                            </div>
-                            <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="E" class="form-check-input">E (Glu)</label>
-                            </div>
-                            <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="F" class="form-check-input">F (Phe)</label>
-                            </div>
-                            <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="G" class="form-check-input">G (Gly)</label>
-                            </div>
-                            <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="H" class="form-check-input">H (His)</label>
-                            </div>
-                            <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="I" class="form-check-input">I (Ile)</label>
-                            </div>
-                            <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="K" class="form-check-input">K (Lys)</label>
-                            </div>
-                            <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="L" class="form-check-input">L (Leu)</label>
-                            </div>
-                            <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="M" class="form-check-input">M (Met)</label>
-                            </div>
-                            <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="N" class="form-check-input">N (Asn)</label>
-                            </div>
-                            <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="P" class="form-check-input">P (Pro)</label>
-                            </div>
-                            <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="Q" class="form-check-input">Q (Gln)</label>
-                            </div>
-                            <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="R" class="form-check-input">R (Arg)</label>
-                            </div>
-                            <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="S" class="form-check-input">S (Ser)</label>
-                            </div>
-                            <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="T" class="form-check-input">T (Thr)</label>
-                            </div>
-                            <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="V" class="form-check-input">V (Val)</label>
-                            </div>
-                            <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="W" class="form-check-input">W (Trp)</label>
-                            </div>
-                            <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="Y" class="form-check-input">Y (Tyr)</label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- sec checkboxes for x -->
-                    <div id="x_sec_checkboxes" class="option-checkboxes">
-                        <h6 class="mb-3">Select Secondary Structures:</h6>
-                        <div class="row">
-                            <div class="col-12 mb-2">
-                                <label class="form-check-label">
-                                    <input type="checkbox" id="x_sec_all" class="form-check-input">
-                                    <strong>Select All</strong>
-                                </label>
-                            </div>
-                            <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="3₁₀-helix" class="form-check-input">3₁₀-helix</label>
-                            </div>
-                            <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="α-helix" class="form-check-input">α-helix</label>
-                            </div>
-                            <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="π-helix" class="form-check-input">π-helix</label>
-                            </div>
-                            <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="PPII-helix" class="form-check-input">PPII-helix</label>
-                            </div>
-                            <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="ß-bridge" class="form-check-input">ß-bridge</label>
-                            </div>
-                            <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="ß-strand" class="form-check-input">ß-strand</label>
-                            </div>
-                            <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="turn" class="form-check-input">turn</label>
-                            </div>
-                            <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="bend" class="form-check-input">bend</label>
-                            </div>
-                            <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="loop" class="form-check-input">loop</label>
-                            </div>
-                            <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="unassigned" class="form-check-input">unassigned</label>
-                            </div>
-                            <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="x_data[]" value="IDR" class="form-check-input">IDR</label>
-                            </div>
-                        </div>
-                    </div>
-
-                     <!-- protein input for x -->
-                    <div id="x_protein_input" class="protein-input input-with-overlay" style="position: relative;">
-                        <label class="form-label">Protein IDs</label>
-                        <div style="position:relative;">
-                            <div id="x_protein-overlay" class="input-token-overlay"></div>
-                            <input type="text" id="x_protein_text" name="x_data[]" class="form-control" placeholder="e.g. P05067 P41227" autocomplete="off">
-                        </div>
-                        <span class="protein-hint">Enter protein IDs (UniProt) separated by spaces (e.g. P05067 P41227)</span>
-                    </div>
-
-                    <div class="row align-items-center mt-4">
-                        <div class="col-auto">
-                            <label class="form-label">in</label>
-                        </div>
-                        <div class="col-auto">
-                            <select name="y" id="y" class="form-select" required>
-                                <option value="" disabled selected>Select annotation type</option>
-                                <option value="ptm_name">PTM (Post-translational modification)</option>
-                                <option value="AA">Amino Acid</option>
-                                <option value="sec">Secondary Structure</option>
-                                <option value="domain">Protein Domain</option>
-                            </select>
-                        </div>
-                    </div>
-
                     <!-- PTM input for y -->
-                    <div id="y_ptm_input" class="ptm-input input-with-overlay" style="position: relative;">
-                        <label class="form-label">PTM Modifications</label>
+                    <div id="y_ptm_input" class="ptm-input input-with-overlay">
+                        <div class="col-12 mb-2">
+                          <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="y_ptm_bulk" name="y_ptm_bulk">
+                            <label class="form-check-label" for="y_ptm_bulk">
+                              <span id="switch-label-y-ptm">Individual</span>
+                            </label>
+                          </div>
+                        </div>                        
+                        <div class="row">
+                            <div class="col-12 mb-2">
+                                <label class="form-check-label">
+                                    <input type="checkbox" id="y_ptm_all" class="form-check-input">
+                                    <strong>Select All</strong>
+                                </label>
+                            </div>
+                        </div>
                         <div style="position:relative;">
                             <div id="y_ptm-overlay" class="input-token-overlay"></div>
-                            <input type="text" id="y_ptm_text" name="y_data[]" class="form-control" placeholder="e.g. [1]Acetyl [21]Phospho [35]Oxidation" autocomplete="off">
+                            <input type="text" id="y_ptm_text" name="y_types[]" class="form-control" placeholder="[1]Acetyl [21]Phospho [35]Oxidation" autocomplete="off">
                         </div>
-                        <span class="ptm-hint">Enter PTM modifications separated by spaces (e.g. [1]Acetyl [21]Phospho [35]Oxidation)</span>
+                        <span class="ptm-hint">Enter PTM modifications separated by spaces, e.g. [1]Acetyl [21]Phospho [35]Oxidation.<br>Modifications are annotated as [Unimod accession]name, where the name corresponds to the Unimod PSI-MS Name or, if unavailable, the Unimod Interim name.</span>
                     </div>
 
                     <!-- Domain input for y -->
-                    <div id="y_domain_input" class="domain-input input-with-overlay" style="position: relative;">
-                        <label class="form-label">Protein Domain(s)</label>
+                    <div id="y_domain_input" class="domain-input input-with-overlay">
+                        <div class="col-12 mb-2">
+                          <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="y_domain_bulk" name="y_domain_bulk">
+                            <label class="form-check-label" for="y_domain_bulk">
+                              <span id="switch-label-y-domain">Individual</span>
+                            </label>
+                          </div>
+                        </div>                        
+                        <div class="row">
+                            <div class="col-12 mb-2">
+                                <label class="form-check-label">
+                                    <input type="checkbox" id="y_domain_all" class="form-check-input">
+                                    <strong>Select All</strong>
+                                </label>
+                            </div>
+                        </div>
                         <div style="position:relative;">
                             <div id="y_domain-overlay" class="input-token-overlay"></div>
-                            <input type="text" id="y_domain_text" name="y_data[]" class="form-control" placeholder="e.g. IPR000001 IPR000007" autocomplete="off">
+                            <input type="text" id="y_domain_text" name="y_types[]" class="form-control" placeholder="e.g. IPR000001 IPR000007" autocomplete="off">
                         </div>
-                        <span class="domain-hint">Enter protein domain(s) separated by spaces (e.g. IPR000001 IPR000007)</span>
+                        <span class="domain-hint">Enter protein domain(s) separated by spaces, e.g. IPR000001 IPR000007.</span>
+                    </div>
+                        
+                    <!-- protein input for y -->
+                    <div id="y_protein_input" class="protein-input input-with-overlay">
+                        <div class="col-12 mb-2">
+                          <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="y_protein_bulk" name="y_protein_bulk">
+                            <label class="form-check-label" for="y_protein_bulk">
+                              <span id="switch-label-y-protein">Individual</span>
+                            </label>
+                          </div>
+                        </div>                                                
+                        <div class="row">
+                            <div class="col-12 mb-2">
+                                <label class="form-check-label">
+                                    <input type="checkbox" id="y_protein_all" class="form-check-input">
+                                    <strong>Select All</strong>
+                                </label>
+                            </div>
+                        </div>                        
+                        <div style="position:relative;">
+                            <div id="y_protein-overlay" class="input-token-overlay"></div>
+                            <input type="text" id="y_protein_text" name="y_types[]" class="form-control" placeholder="e.g. P05067 P41227" autocomplete="off">
+                        </div>
+                        <span class="protein-hint">Enter protein IDs (UniProt) separated by spaces, e.g. P05067 P41227.</span>
                     </div>
 
                     <!-- AA checkboxes for y -->
                     <div id="y_aa_checkboxes" class="option-checkboxes">
-                        <h6 class="mb-3">Select Amino Acids:</h6>
+                        <div class="col-12 mb-2">
+                          <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="y_aa_bulk" name="y_aa_bulk">
+                            <label class="form-check-label" for="y_aa_bulk">
+                              <span id="switch-label-y-aa">Individual</span>
+                            </label>
+                          </div>
+                        </div>                                                
                         <div class="row">
                             <div class="col-12 mb-2">
                                 <label class="form-check-label">
@@ -232,71 +324,78 @@
                                 </label>
                             </div>
                             <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="A" class="form-check-input">A (Ala)</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="A" class="form-check-input">A (Ala)</label>
                             </div>
                             <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="C" class="form-check-input">C (Cys)</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="C" class="form-check-input">C (Cys)</label>
                             </div>
                             <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="D" class="form-check-input">D (Asp)</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="D" class="form-check-input">D (Asp)</label>
                             </div>
                             <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="E" class="form-check-input">E (Glu)</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="E" class="form-check-input">E (Glu)</label>
                             </div>
                             <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="F" class="form-check-input">F (Phe)</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="F" class="form-check-input">F (Phe)</label>
                             </div>
                             <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="G" class="form-check-input">G (Gly)</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="G" class="form-check-input">G (Gly)</label>
                             </div>
                             <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="H" class="form-check-input">H (His)</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="H" class="form-check-input">H (His)</label>
                             </div>
                             <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="I" class="form-check-input">I (Ile)</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="I" class="form-check-input">I (Ile)</label>
                             </div>
                             <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="K" class="form-check-input">K (Lys)</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="K" class="form-check-input">K (Lys)</label>
                             </div>
                             <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="L" class="form-check-input">L (Leu)</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="L" class="form-check-input">L (Leu)</label>
                             </div>
                             <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="M" class="form-check-input">M (Met)</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="M" class="form-check-input">M (Met)</label>
                             </div>
                             <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="N" class="form-check-input">N (Asn)</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="N" class="form-check-input">N (Asn)</label>
                             </div>
                             <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="P" class="form-check-input">P (Pro)</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="P" class="form-check-input">P (Pro)</label>
                             </div>
                             <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="Q" class="form-check-input">Q (Gln)</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="Q" class="form-check-input">Q (Gln)</label>
                             </div>
                             <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="R" class="form-check-input">R (Arg)</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="R" class="form-check-input">R (Arg)</label>
                             </div>
                             <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="S" class="form-check-input">S (Ser)</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="S" class="form-check-input">S (Ser)</label>
                             </div>
                             <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="T" class="form-check-input">T (Thr)</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="T" class="form-check-input">T (Thr)</label>
                             </div>
                             <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="V" class="form-check-input">V (Val)</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="V" class="form-check-input">V (Val)</label>
                             </div>
                             <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="W" class="form-check-input">W (Trp)</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="W" class="form-check-input">W (Trp)</label>
                             </div>
                             <div class="col-md-2 col-4">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="Y" class="form-check-input">Y (Tyr)</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="Y" class="form-check-input">Y (Tyr)</label>
                             </div>
                         </div>
                     </div>
 
                     <!-- sec checkboxes for y -->
                     <div id="y_sec_checkboxes" class="option-checkboxes">
-                        <h6 class="mb-3">Select Secondary Structures:</h6>
+                        <div class="col-12 mb-2">
+                          <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="y_sec_bulk" name="y_sec_bulk">
+                            <label class="form-check-label" for="y_sec_bulk">
+                              <span id="switch-label-y-sec">Individual</span>
+                            </label>
+                          </div>
+                        </div>                                                
                         <div class="row">
                             <div class="col-12 mb-2">
                                 <label class="form-check-label">
@@ -305,37 +404,37 @@
                                 </label>
                             </div>
                             <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="3₁₀-helix" class="form-check-input">3₁₀-helix</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="3₁₀-helix" class="form-check-input">3₁₀-helix</label>
                             </div>
                             <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="α-helix" class="form-check-input">α-helix</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="α-helix" class="form-check-input">α-helix</label>
                             </div>
                             <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="π-helix" class="form-check-input">π-helix</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="π-helix" class="form-check-input">π-helix</label>
                             </div>
                             <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="PPII-helix" class="form-check-input">PPII-helix</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="PPII-helix" class="form-check-input">PPII-helix</label>
                             </div>
                             <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="ß-bridge" class="form-check-input">ß-bridge</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="ß-bridge" class="form-check-input">ß-bridge</label>
                             </div>
                             <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="ß-strand" class="form-check-input">ß-strand</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="ß-strand" class="form-check-input">ß-strand</label>
                             </div>
                             <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="turn" class="form-check-input">turn</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="turn" class="form-check-input">turn</label>
                             </div>
                             <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="bend" class="form-check-input">bend</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="bend" class="form-check-input">bend</label>
                             </div>
                             <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="loop" class="form-check-input">loop</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="loop" class="form-check-input">loop</label>
                             </div>
                             <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="unassigned" class="form-check-input">unassigned</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="unassigned" class="form-check-input">unassigned</label>
                             </div>
                             <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="y_data[]" value="IDR" class="form-check-input">IDR</label>
+                                <label class="form-check-label"><input type="checkbox" name="y_types[]" value="IDR" class="form-check-input">IDR</label>
                             </div>
                         </div>
                     </div>
@@ -360,9 +459,9 @@
                         <label class="form-label">Protein IDs</label>
                         <div style="position:relative;">
                             <div id="z_protein-overlay" class="input-token-overlay"></div>
-                            <input type="text" id="z_protein_text" name="z_data[]" class="form-control" placeholder="e.g. P05067 P41227" autocomplete="off">
+                            <input type="text" id="z_protein_text" name="filters[]" class="form-control" placeholder="e.g. P05067 P41227" autocomplete="off">
                         </div>
-                        <span class="protein-hint">Enter protein IDs (UniProt) separated by spaces (e.g. P05067 P41227)</span>
+                        <span class="protein-hint">Enter protein IDs (UniProt) separated by spaces (e.g. P05067 P41227).</span>
                     </div>
 
                     <!-- Domain input for z -->
@@ -370,14 +469,13 @@
                         <label class="form-label">Protein Domain(s)</label>
                         <div style="position:relative;">
                             <div id="z_domain-overlay" class="input-token-overlay"></div>
-                            <input type="text" id="z_domain_text" name="z_data[]" class="form-control" placeholder="e.g. IPR000001 IPR000007">
+                            <input type="text" id="z_domain_text" name="filters[]" class="form-control" placeholder="e.g. IPR000001 IPR000007">
                         </div>
                         <span class="domain-hint">Enter protein domain(s) separated by spaces (e.g. IPR000001 IPR000007)</span>
                     </div>
 
                     <!-- sec checkboxes for z -->
                     <div id="z_sec_checkboxes" class="option-checkboxes">
-                        <h6 class="mb-3">Select Secondary Structures:</h6>
                         <div class="row">
                             <div class="col-12 mb-2">
                                 <label class="form-check-label">
@@ -386,37 +484,37 @@
                                 </label>
                             </div>
                             <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="z_data[]" value="3₁₀-helix" class="form-check-input">3₁₀-helix</label>
+                                <label class="form-check-label"><input type="checkbox" name="filters[]" value="3₁₀-helix" class="form-check-input">3₁₀-helix</label>
                             </div>
                             <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="z_data[]" value="α-helix" class="form-check-input">α-helix</label>
+                                <label class="form-check-label"><input type="checkbox" name="filters[]" value="α-helix" class="form-check-input">α-helix</label>
                             </div>
                             <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="z_data[]" value="π-helix" class="form-check-input">π-helix</label>
+                                <label class="form-check-label"><input type="checkbox" name="filters[]" value="π-helix" class="form-check-input">π-helix</label>
                             </div>
                             <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="z_data[]" value="PPII-helix" class="form-check-input">PPII-helix</label>
+                                <label class="form-check-label"><input type="checkbox" name="filters[]" value="PPII-helix" class="form-check-input">PPII-helix</label>
                             </div>
                             <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="z_data[]" value="ß-bridge" class="form-check-input">ß-bridge</label>
+                                <label class="form-check-label"><input type="checkbox" name="filters[]" value="ß-bridge" class="form-check-input">ß-bridge</label>
                             </div>
                             <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="z_data[]" value="ß-strand" class="form-check-input">ß-strand</label>
+                                <label class="form-check-label"><input type="checkbox" name="filters[]" value="ß-strand" class="form-check-input">ß-strand</label>
                             </div>
                             <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="z_data[]" value="turn" class="form-check-input">turn</label>
+                                <label class="form-check-label"><input type="checkbox" name="filters[]" value="turn" class="form-check-input">turn</label>
                             </div>
                             <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="z_data[]" value="bend" class="form-check-input">bend</label>
+                                <label class="form-check-label"><input type="checkbox" name="filters[]" value="bend" class="form-check-input">bend</label>
                             </div>
                             <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="z_data[]" value="loop" class="form-check-input">loop</label>
+                                <label class="form-check-label"><input type="checkbox" name="filters[]" value="loop" class="form-check-input">loop</label>
                             </div>
                             <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="z_data[]" value="unassigned" class="form-check-input">unassigned</label>
+                                <label class="form-check-label"><input type="checkbox" name="filters[]" value="unassigned" class="form-check-input">unassigned</label>
                             </div>
                             <div class="col-md-3 col-6">
-                                <label class="form-check-label"><input type="checkbox" name="z_data[]" value="IDR" class="form-check-input">IDR</label>
+                                <label class="form-check-label"><input type="checkbox" name="filters[]" value="IDR" class="form-check-input">IDR</label>
                             </div>
                         </div>
                     </div>

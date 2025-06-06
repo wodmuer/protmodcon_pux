@@ -41,128 +41,12 @@ def calculate_odds_ratios(table_a, table_b, table_c, table_d):
     return (table_a * table_d) / (table_b * table_c)
 
 # Function to compute chi-square for parallel processing
-def compute_chisq(args):
+def compute_chisq(argms):
+    idx, a, b, c, d = argms
     """Compute chi-square test for a single contingency table"""
-    idx, a, b, c, d = args
     table = np.array([[a, b], [c, d]])
     _, p, _, _ = scipy.stats.chi2_contingency(table)
     return p
-
-def get_n(protein_id_annotation_position, protein_id_position_AA, t, AAs=[]):
-    """Optimized get_n function with filtering"""
-        
-    # Fast path: check if annotation exists at all
-    has_annotation = False
-    for annotations in protein_id_annotation_position.values():
-        if t in annotations:
-            has_annotation = True
-            break
-            
-    if not has_annotation:
-        return set()
-    # Use set comprehension for better performance
-    result = set()
-    for protein_id, annotations in protein_id_annotation_position.items():
-        if t in annotations:
-            positions = annotations.get(t, [])
-            
-            # If we need to filter by AAs, do it efficiently
-            if len(AAs) != 0:
-                for position in positions:
-                    key = (protein_id, position)
-                    AA = protein_id_position_AA.get(key)
-                    if AA in AAs:
-                        result.add(key)
-            else:
-                # No AA filtering needed, add all positions
-                result.update((protein_id, position) for position in positions)
-    
-    return result
-
-def precompute_nm_nc_k(x_types, y_types, ptm_name_AA, protein_id_annotation_position, protein_id_position_AA):
-    """Precompute nm_per_d, nc_per_i and k_per_d_i with optimized caching strategy."""
-    start_time = time.time()
-    
-    # First precompute all positions for each annotation - do the work once
-    print("Caching positions for all annotation types...")
-    position_cache = {}
-    
-    # Process all unique annotation types at once
-    types = list(set(x_types) | set(y_types))
-    
-    for t in tqdm(types, desc="Building position cache"):
-        position_cache[t] = get_n(protein_id_annotation_position, protein_id_position_AA, t, ptm_name_AA.get(t, []))
-    
-    print(f"Position cache built for {len(types)} annotation types in {time.time() - start_time:.2f} seconds")
-    
-    # Now compute nm_per_d, nc_per_i and k_per_d_i using the cached positions
-    nm_per_d = {}
-    nc_per_i = {}
-    k_per_d_i = {}
-    
-    # Use batching to balance between parallelism overhead and utilization
-    task_count = len(x_types) * len(y_types)
-    # For large tasks, use multiprocessing
-    if task_count > 5000 and len(x_types) > 50:  
-        print(f"Using parallel processing for {task_count} combinations...")
-        batch_size = max(1, len(x_types) // (os.cpu_count() * 2))       
-        chunks = [(x_types[i:i+batch_size], y_types, position_cache) for i in range(0, len(x_types), batch_size)]       
-        
-        with Pool(processes=os.cpu_count()) as pool:
-            all_results = list(tqdm(
-                pool.imap(process_position_batch, chunks),
-                total=len(chunks),
-                desc="Processing position batches"
-            ))  
-           
-        # Merge results from all batches
-        for batch_nm, batch_nc, batch_k in all_results:
-            nm_per_d.update(batch_nm)
-            nc_per_i.update(batch_nc)
-            k_per_d_i.update(batch_k)
-    
-    else:
-        # For smaller tasks, process directly without multiprocessing
-        print(f"Processing {task_count} position calculations directly...")
-        total = len(x_types) * len(y_types)
-        count = 0
-        
-        for d in x_types:
-            x_positions = position_cache[d]
-            nm_per_d[d] = len(x_positions)
-            for i in y_types:
-                y_positions = position_cache[i]
-                nc_per_i[i] = len(y_positions)
-                k_per_d_i[(d, i)] = len(x_positions & y_positions)
-                
-                # Update progress every 1000 iterations
-                count += 1
-                if count % 1000 == 0 or count == total:
-                    print(f"Progress: {count}/{total} combinations processed ({count/total*100:.1f}%)")
-    
-    print(f"Precomputation completed in {time.time() - start_time:.2f} seconds")
-    return nm_per_d, nc_per_i, k_per_d_i
-
-def process_position_batch(args):
-    """Process a batch of x_types against all y_types."""
-    d_batch, y_types, position_cache = args
-    batch_nm = {}  
-    batch_nc = {}
-    batch_k = {}
-    
-    for d in d_batch:
-        x_positions = position_cache[d]
-        # Calculate nm for this d_type
-        batch_nm[d] = len(x_positions)
-        
-        for i in y_types:
-            y_positions = position_cache[i]
-            
-            # Fast set operations
-            batch_nc[i] = len(y_positions)  
-            batch_k[(d, i)] = len(x_positions & y_positions)
-    
-    return batch_nm, batch_nc, batch_k
 
 def process_i(x_types, y_types, n, nm_per_d, nc_per_i, k_per_d_i):
     """Process the analysis with optimized computation - parallel version"""    
@@ -222,24 +106,25 @@ def process_i(x_types, y_types, n, nm_per_d, nc_per_i, k_per_d_i):
     )
     
     # Prepare arguments for parallel chi-square computation
-    chisq_args = [
+    chisq_argms = [
         (idx, table_a[idx], table_b[idx], table_c[idx], table_d[idx]) 
         for idx in valid_indices
     ]
+
     # Parallel computation of p-values
     num_processes = min(os.cpu_count(), len(valid_indices))
     if num_processes > 1 and len(valid_indices) > 10:  # Only use multiprocessing for larger datasets
         print(f"Using {num_processes} processes for chi-square calculations")
         with Pool(processes=num_processes) as pool:
             p_values = list(tqdm(
-                pool.imap(compute_chisq, chisq_args, chunksize=max(1, len(chisq_args) // (num_processes * 4))),
-                total=len(chisq_args),
+                pool.imap(compute_chisq, chisq_argms, chunksize=max(1, len(chisq_argms) // (num_processes * 4))),
+                total=len(chisq_argms),
                 desc="Computing p-values"
             ))
     else:
         # Fall back to sequential for small datasets
         print("Computing p-values sequentially")
-        p_values = [compute_chisq(args) for args in tqdm(chisq_args, desc="Computing p-values")]
+        p_values = [compute_chisq(argms) for argms in tqdm(chisq_argms, desc="Computing p-values")]
     
     # Create DataFrame for valid results
     result_df = pd.DataFrame({
@@ -255,39 +140,6 @@ def process_i(x_types, y_types, n, nm_per_d, nc_per_i, k_per_d_i):
     
     print(f"Analysis processing completed in {time.time() - start_time:.2f} seconds")
     return result_df
-    
-def filter_positions_with_all_categories(protein_id_annotation_position, filters):
-    """
-    Filter positions in protein_id_annotation_position.json to only include positions 
-    that have annotations specified by the filters.
-    """
-    ptm_ids, AA_ids, sec_ids, domain_ids, protein_ids = [], [], [], [], []
-    for item in filters:
-        if item.startswith('['):
-            ptm_ids.append(item)
-        elif item in ('A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y'):
-            AA_ids.append(item)
-        elif item in ('310HELX', 'AHELX', 'PIHELX', 'PPIIHELX', 'STRAND', 'BRIDGE', 'TURN', 'BEND', 'unassigned', 'LOOP', 'IDR'):
-            sec_ids.append(item)
-        elif item.startswith('IPR'):
-            domain_ids.append(item)
-        else:
-            protein_ids.append(item)
-    
-    if not any([ptm_ids, AA_ids, sec_ids, domain_ids, protein_ids]):
-        return protein_id_annotation_position
-    
-    result = {}
-    
-    # First filter proteins by protein_ids if provided
-    proteins_to_process = protein_id_annotation_position
-    if protein_ids:
-        proteins_to_process = {pid: annotations for pid, annotations in protein_id_annotation_position.items() 
-                              if pid in protein_ids}
-    
-    # If we're only filtering by protein_ids and no other filters are active, just return the filtered proteins
-    if not any([sec_ids, domain_ids]):
-        return proteins_to_process
     
     # Process each selected protein
     for protein_id, annotations in proteins_to_process.items():
@@ -440,7 +292,7 @@ def perform_enrichment_analysis(
             for d in modifiability:
                 ptm_name_AA[d] = modifiability[d]
                 
-    # Mapping for secondary structure elements
+    # Mapping for secondary structure elements (to overcome HTML issues)
     sec_mapping = {
         '310HELX': '3₁₀-helix',
          'AHELX': 'α-helix',
@@ -465,44 +317,57 @@ def perform_enrichment_analysis(
         y_types = mapped_y
     # else: y_types remains unchanged
 
+    mapped_filters = [sec_mapping[sec] for sec in y_types if sec in sec_mapping]
+    if mapped_filters:
+        filters = mapped_filters
+    # else: filters remains unchanged
+
     # Update types - convert to tuples for caching
     x_types = tuple(sorted(x_types, key=lambda x: int(x.split(']')[0][1:]) if x.startswith('[') else x))
     y_types = tuple(sorted(y_types, key=lambda x: int(x.split(']')[0][1:]) if x.startswith('[') else x))
     
     # Check if there exists a file in which user's request has already been calculated
-    file_path = 'data/requests.csv'
+    file_path = 'data/requests.csv' # maybe read with pandas?? instead of json
     request = str([x_types, y_types, filters, modifiability])
 
     if os.path.exists(file_path):
         with open(file_path, 'r') as f:
             requests = json.load(f)
         # get index of the request and the corresponding filename (its index)
-        idx = requests.index(request)
-        filename = f'results_protmodcon/{idx}.csv'
-        print(f"Results saved to {filename}")
-        return # stop function
-
+        try:
+            idx = requests.index(request)
+            filename = f'results_protmodcon/{idx}.csv'
+            print(f"Results saved to {filename}")
+            return # stop function
+        except:
+            ''
+            
     total_start_time = time.time()
-   
-    # Load data
-    with open('data/protein_id_annotation_position.json') as file:
-        protein_id_annotation_position = json.load(file)
-        
-    protein_id_annotation_position = filter_positions_with_all_categories(protein_id_annotation_position, filters)
 
-    with open('data/protein_id_position_AA.json') as position_file:
-        protein_id_position_AA = json.load(position_file)
+    protmodcon = pd.read_csv('protmodcon.csv')
+    
+    if filters:
+        mask = protmodcon.isin(filters).any(axis=1)
+        protmodcon = protmodcon[mask]
+
+    n = protmodcon[['protein_id', 'position']].drop_duplicates().shape[0]
         
-    protein_id_position_AA = convert_to_cross_reference_format(protein_id_annotation_position, protein_id_position_AA)
-    print(f"Loaded annotation data for {len(protein_id_annotation_position)} proteins")
+    # compute pairwise overlaps across all columns
+    nm_per_d, nc_per_i, k_per_d_i = {}, {}, {}
     
-    protein_ids = tuple(protein_id_annotation_position.keys()) # tuple required for cache
-    
-    n = len(protein_id_position_AA)
-    nm_per_d, nc_per_i, k_per_d_i = precompute_nm_nc_k(
-        x_types, y_types, ptm_name_AA, 
-        protein_id_annotation_position, protein_id_position_AA
-    )
+    for x in x_types:
+        mask_x = protmodcon.isin([x]).any(axis=1)
+        x_set = set(
+            protmodcon[mask_x]['protein_id'].astype(str) + '_' + protmodcon[mask_x]['position'].astype(str)
+        )
+        nm_per_d[x] = len(x_set)        
+        for y in y_types:
+            mask_y = protmodcon.isin([y]).any(axis=1)
+            y_set = set(
+                protmodcon[mask_y]['protein_id'].astype(str) + '_' + protmodcon[mask_y]['position'].astype(str)
+            )
+            nc_per_i[y] = len(y_set)        
+            k_per_d_i[(x, y)] = len(x_set & y_set)
 
     print("Processing data...")
     start_time = time.time()
@@ -511,7 +376,7 @@ def perform_enrichment_analysis(
     results_df = process_i(x_types, y_types, n, nm_per_d, nc_per_i, k_per_d_i)
     
     print(f"Data processed in {time.time() - start_time:.2f} seconds")
-    
+
     # Apply multiple testing correction if needed and if there are results
     if not results_df.empty:
         print("Applying multiple testing correction...")
@@ -536,22 +401,33 @@ def perform_enrichment_analysis(
             by=['x', 'y'], 
             key=lambda x: x.map(custom_sort)
         )
-
-        try:
+        
+        # Ensure the file exists and is a list
+        if not os.path.exists(file_path) or os.stat(file_path).st_size == 0:
+            requests = []
+        else:
             with open(file_path, 'r') as f:
-                requests = json.load(f)
-            # get index of the request and the corresponding filename (its index)
-            idx = requests.index(request)
-            filename = f'results_protmodcon/{idx}.csv'
-            results_df.to_csv(filename, index=False)
-            print(f"Results saved to {filename}")
-        except (json.JSONDecodeError, FileNotFoundError): # If file is empty, insert first request
-            with open(file_path, 'w') as f:
-                json.dump(request, f)
-            filename = f'results_protmodcon/0.csv'
-            results_df.to_csv(filename, index=False)
-            print(f"Results saved to {filename}")
-            
+                try:
+                    requests = json.load(f)
+                    if not isinstance(requests, list):
+                        requests = [requests]
+                except json.JSONDecodeError:
+                    requests = []
+        
+        # Ensure request is in the list
+        if request not in requests:
+            requests.append(request)
+        
+        # Save the updated list back to the file
+        with open(file_path, 'w') as f:
+            json.dump(requests, f)
+        
+        # Get the index of this request
+        idx = requests.index(request)
+        filename = f'results_protmodcon/{idx}.csv'
+        results_df.to_csv(filename, index=False)
+        print(f"Results saved to {filename}")
+        
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='protmodcon: Comprehensive Analysis of Protein Modifications from a Conformational Perspective',
