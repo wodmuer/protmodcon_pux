@@ -141,119 +141,13 @@ def process_i(x_types, y_types, n, nm_per_d, nc_per_i, k_per_d_i):
     print(f"Analysis processing completed in {time.time() - start_time:.2f} seconds")
     return result_df
     
-    # Process each selected protein
-    for protein_id, annotations in proteins_to_process.items():
-        # Create position sets for each annotation type we need to filter for
-        positions_by_type = {}
-        if ptm_ids:
-            positions_by_type['ptm'] = set()
-        if AA_ids:
-            positions_by_type['AA'] = set()
-        if sec_ids:
-            positions_by_type['sec'] = set()
-        if domain_ids:
-            positions_by_type['domain'] = set()
-        
-        # Track which positions have which annotations
-        position_annotations = {}
-        
-        # Process all annotations in this protein
-        for annotation, positions in annotations.items():
-            # Check if this is a ptm we're interested in
-            if ptm_ids and annotation in ptm_ids:
-                for pos in positions:
-                    positions_by_type['ptm'].add(pos)
-                    if pos not in position_annotations:
-                        position_annotations[pos] = {'ptm': [], 'AA': [], 'sec': [], 'domain': []}
-                    position_annotations[pos]['ptm'].append(annotation)
-            
-            # Check if this is an AA annotation we're interested in
-            elif AA_ids and annotation in AA_ids:
-                for pos in positions:
-                    positions_by_type['AA'].add(pos)
-                    if pos not in position_annotations:
-                        position_annotations[pos] = {'ptm': [], 'AA': [], 'sec': [], 'domain': []}
-                    position_annotations[pos]['AA'].append(annotation)            
-                    
-            # Check if this is a secondary structure annotation we're interested in
-            elif sec_ids and annotation in sec_ids:
-                for pos in positions:
-                    positions_by_type['sec'].add(pos)
-                    if pos not in position_annotations:
-                        position_annotations[pos] = {'ptm': [], 'AA': [], 'sec': [], 'domain': []}
-                    position_annotations[pos]['sec'].append(annotation)
-            
-            # Check if this is a domain annotation we're interested in
-            elif domain_ids and annotation in domain_ids:
-                for pos in positions:
-                    positions_by_type['domain'].add(pos)
-                    if pos not in position_annotations:
-                        position_annotations[pos] = {'ptm': [], 'AA': [], 'sec': [], 'domain': []}
-                    position_annotations[pos]['domain'].append(annotation)
-        
-        # Find positions that exist in all requested annotation types
-        shared_positions = None
-        for req_type, positions in positions_by_type.items():
-            if shared_positions is None:
-                shared_positions = positions
-            else:
-                shared_positions = shared_positions.intersection(positions)
-        
-        # If no shared positions found, skip this protein
-        if shared_positions is not None and not shared_positions:
-            continue
-            
-        # Create result dictionary with only the annotations that apply to shared positions
-        protein_result = {}
-        for annotation, positions in annotations.items():
-            # If we have no filtering criteria other than protein_id, include all positions
-            if shared_positions is None:
-                protein_result[annotation] = positions
-                continue
-                
-            # Keep only positions that are in the shared set
-            filtered_positions = [pos for pos in positions if pos in shared_positions]
-            if filtered_positions:
-                protein_result[annotation] = filtered_positions
-        
-        result[protein_id] = protein_result
-    
-    return result
-
-def convert_to_cross_reference_format(protein_id_annotation_position, protein_id_position_AA):
-    """
-    Create cross-reference dictionary mapping (protein_id, position) tuples to amino acids
-    """
-    result = {}
-    
-    # Process each entry in the amino acid dictionary
-    for key, amino_acid in protein_id_position_AA.items():
-        # Parse the protein ID and position from the key
-        parts = key.split('_')
-        if len(parts) != 2:
-            continue
-            
-        protein_id = parts[0]
-        try:
-            position = int(parts[1])
-        except ValueError:
-            continue
-        
-        # Check if this protein exists in the original dictionary
-        if protein_id in protein_id_annotation_position:
-            # Check if this amino acid and position exist in the original annotations
-            if amino_acid in protein_id_annotation_position[protein_id]:
-                if position in protein_id_annotation_position[protein_id][amino_acid]:
-                    # Add to result dictionary
-                    result[(protein_id, position)] = amino_acid
-    
-    return result
-    
 def perform_enrichment_analysis(
     x_types: set,
     y_types: set,
     filters: list,
-    modifiability: dict
+    modifiability: dict,
+    x_mode: str,
+    y_mode: str
 ) -> pd.DataFrame:
     """
     Perform enrichment analysis to evaluate which modifications or annotations (x_types) are enriched / depleted 
@@ -279,10 +173,14 @@ def perform_enrichment_analysis(
         Example: {'[21]Phospho': ['S', 'T', 'Y']}.
         If empty, all amino acids evaluated by ionbot are considered modifiable for each ptm_name.
 
+    x_mode / y_mode : str, required
+        Whether to calculate individual enrichment or for a group (e.g. proteins) of interest
+
     Returns
     -------
     pd.DataFrame
         A DataFrame containing the results of the enrichment analysis.
+    """
     """
     ptm_name_AA = {}
     if x_types[0].startswith('['):
@@ -291,6 +189,13 @@ def perform_enrichment_analysis(
         if len(modifiability) != 0:
             for d in modifiability:
                 ptm_name_AA[d] = modifiability[d]
+    # also for y?
+    # Process modifiability argument if provided
+    if modifiability:
+        for mod_str in modifiability:
+            ptm, aas = mod_str.split(':')
+            modifiability[ptm] = aas.split(',')
+    """   
                 
     # Mapping for secondary structure elements (to overcome HTML issues)
     sec_mapping = {
@@ -307,28 +212,18 @@ def perform_enrichment_analysis(
          'IDR': 'IDR'
     }
         
-    mapped_x = [sec_mapping[sec] for sec in x_types if sec in sec_mapping]
-    if mapped_x:
-        x_types = mapped_x
-    # else: x_types remains unchanged
-
-    mapped_y = [sec_mapping[sec] for sec in y_types if sec in sec_mapping]
-    if mapped_y:
-        y_types = mapped_y
-    # else: y_types remains unchanged
-
-    mapped_filters = [sec_mapping[sec] for sec in y_types if sec in sec_mapping]
-    if mapped_filters:
-        filters = mapped_filters
-    # else: filters remains unchanged
-
-    # Update types - convert to tuples for caching
-    x_types = tuple(sorted(x_types, key=lambda x: int(x.split(']')[0][1:]) if x.startswith('[') else x))
-    y_types = tuple(sorted(y_types, key=lambda x: int(x.split(']')[0][1:]) if x.startswith('[') else x))
+    def map_types(types, mapping):
+        mapped = [mapping[sec] for sec in types if sec in mapping]
+        return mapped if mapped else types
+    
+    x_types = map_types(x_types, sec_mapping)
+    y_types = map_types(y_types, sec_mapping)
+    if filters:
+        filters = map_types(y_types, sec_mapping)
     
     # Check if there exists a file in which user's request has already been calculated
-    file_path = 'data/requests.csv' # maybe read with pandas?? instead of json
-    request = str([x_types, y_types, filters, modifiability])
+    file_path = 'data/requests.json'
+    request = [x_types, y_types, filters, modifiability, [x_mode], [y_mode]]
 
     if os.path.exists(file_path):
         with open(file_path, 'r') as f:
@@ -339,9 +234,13 @@ def perform_enrichment_analysis(
             filename = f'results_protmodcon/{idx}.csv'
             print(f"Results saved to {filename}")
             return # stop function
-        except:
+        except ValueError:
             ''
-            
+
+    # Update types - convert to tuples for caching
+    x_types = tuple(sorted(x_types, key=lambda x: int(x.split(']')[0][1:]) if x.startswith('[') else x))
+    y_types = tuple(sorted(y_types, key=lambda x: int(x.split(']')[0][1:]) if x.startswith('[') else x))
+    
     total_start_time = time.time()
 
     protmodcon = pd.read_csv('protmodcon.csv')
@@ -355,22 +254,40 @@ def perform_enrichment_analysis(
     # compute pairwise overlaps across all columns
     nm_per_d, nc_per_i, k_per_d_i = {}, {}, {}
     
-    for x in x_types:
-        mask_x = protmodcon.isin([x]).any(axis=1)
-        x_set = set(
-            protmodcon[mask_x]['protein_id'].astype(str) + '_' + protmodcon[mask_x]['position'].astype(str)
-        )
-        nm_per_d[x] = len(x_set)        
-        for y in y_types:
-            mask_y = protmodcon.isin([y]).any(axis=1)
-            y_set = set(
-                protmodcon[mask_y]['protein_id'].astype(str) + '_' + protmodcon[mask_y]['position'].astype(str)
-            )
-            nc_per_i[y] = len(y_set)        
-            k_per_d_i[(x, y)] = len(x_set & y_set)
+    def get_mask_set(types):
+        mask = protmodcon.isin([types]).any(axis=1)
+        return set(protmodcon[mask]['protein_id'].astype(str) + '_' + protmodcon[mask]['position'].astype(str))
+
+    if x_mode == "x_bulk":
+        x = x_types
+        x_set = get_mask_set(x)
+        nm_per_d[x] = len(x_set)
+        x_iter = [x]
+    else:
+        x_iter = x_types
+    
+    if y_mode == "y_bulk":
+        y = y_types
+        y_set = get_mask_set(y)
+        nc_per_i[y] = len(y_set)
+        y_iter = [y]
+    else:
+        y_iter = y_types
+    
+    for x in x_iter:
+        if x_mode == "x_individual":
+            x_set = get_mask_set(x)
+            nm_per_d[x] = len(x_set)
+        for y in y_iter:
+            if y_mode == "y_individual":
+                y_set = get_mask_set(y)
+                nc_per_i[y] = len(y_set)
+            k_per_d_i[(x, y)] = len(get_mask_set(x) & get_mask_set(y))
 
     print("Processing data...")
     start_time = time.time()
+
+    print(x_types, y_types, n, nm_per_d, nc_per_i, k_per_d_i)
           
     # Process the data
     results_df = process_i(x_types, y_types, n, nm_per_d, nc_per_i, k_per_d_i)
@@ -401,29 +318,22 @@ def perform_enrichment_analysis(
             by=['x', 'y'], 
             key=lambda x: x.map(custom_sort)
         )
-        
-        # Ensure the file exists and is a list
-        if not os.path.exists(file_path) or os.stat(file_path).st_size == 0:
-            requests = []
+
+        if not os.path.exists(file_path):
+            # Initialize file with the first request
+            requests = [request]
+            idx = 0
         else:
             with open(file_path, 'r') as f:
-                try:
-                    requests = json.load(f)
-                    if not isinstance(requests, list):
-                        requests = [requests]
-                except json.JSONDecodeError:
-                    requests = []
+                requests = json.load(f)
+                requests.append(request)
+                idx = len(requests) - 1
         
-        # Ensure request is in the list
-        if request not in requests:
-            requests.append(request)
-        
-        # Save the updated list back to the file
+        # Save the updated requests back to the file
         with open(file_path, 'w') as f:
             json.dump(requests, f)
         
-        # Get the index of this request
-        idx = requests.index(request)
+        # idx now holds the index of your request in the file        
         filename = f'results_protmodcon/{idx}.csv'
         results_df.to_csv(filename, index=False)
         print(f"Results saved to {filename}")
@@ -457,6 +367,18 @@ if __name__ == "__main__":
         PSI-MS Name or, if unavailable, the Unimod Interim name, e.g. --modifiability "[21]Phospho:S,T,Y" (double quotes mandatory). Valid ptm_name-AA 
         combinations can be found as keys in data/ptm_name_AA.json.'''
     )
+    parser.add_argument(
+        '--x-mode',
+        required=True,
+        choices=['x_individual', 'x_bulk'],
+        help='Required: Specify the mode for x. Must be "x_individual" or "x_bulk".'
+    )
+    parser.add_argument(
+        '--y-mode',
+        required=True,
+        choices=['y_individual', 'y_bulk'],
+        help='Required: Specify the mode for y. Must be "y_individual" or "y_bulk".'
+    )
 
     args = parser.parse_args()
 
@@ -475,17 +397,12 @@ if __name__ == "__main__":
     for package in third_party_packages:
         install_if_missing(package)
 
-    # Process modifiability argument if provided
-    modifiability = {}
-    if args.modifiability:
-        for mod_str in args.modifiability:
-            ptm, aas = mod_str.split(':')
-            modifiability[ptm] = aas.split(',')
-    
     # Run enrichment analysis
     perform_enrichment_analysis(
         x_types=args.x_types,
         y_types=args.y_types,
         filters=args.filters,
-        modifiability=modifiability
+        modifiability=args.modifiability,
+        x_mode=args.x_mode,
+        y_mode=args.y_mode,
     )

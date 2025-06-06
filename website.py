@@ -15,9 +15,14 @@ def home():
 @app.route('/results', methods=['POST'])
 def results():
     x = request.form.get('x')    
-    x_types = request.form.getlist('x_types[]')
-    x_types = [item for sublist in x_types for item in sublist.split() if item]  # Flatten and filter out empty strings
-    if not x_types and (request.form.get('x_ptm_all') or request.form.get('x_domain_all') or request.form.get('x_protein_all')):
+    x_types = []
+    if x == 'AA':
+        x_types = request.form.getlist('x_aa_types[]')
+    elif x == 'sec':
+        x_types = request.form.getlist('x_sec_types[]')
+    else:
+        x_types = request.form.getlist('x_types[]')
+    if request.form.get('x_all'):
         if x == 'ptm':
             with open('static/valid_PTMS.json', 'r') as f:
                 x_types = json.load(f)
@@ -27,11 +32,17 @@ def results():
         elif x == 'protein':
             with open('static/valid_proteins.json', 'r') as f:
                 x_types = json.load(f)
+    x_types = [item for sublist in x_types for item in sublist.split() if item]  # Flatten and filter out empty strings
 
     y = request.form.get('y')
-    y_types = request.form.getlist('y_types[]')
-    y_types = [item for sublist in y_types for item in sublist.split() if item] 
-    if not y_types:
+    y_types = []
+    if y == 'AA':
+        y_types = request.form.getlist('y_aa_types[]')
+    elif y == 'sec':
+        y_types = request.form.getlist('y_sec_types[]')
+    else:
+        y_types = request.form.getlist('y_types[]')
+    if request.form.get('y_all'):
         if y == 'ptm':
             with open('static/valid_PTMS.json', 'r') as f:
                 y_types = json.load(f)
@@ -41,43 +52,63 @@ def results():
         elif y == 'protein':
             with open('static/valid_proteins.json', 'r') as f:
                 y_types = json.load(f)
+    y_types = [item for sublist in y_types for item in sublist.split() if item] 
 
     filters = request.form.getlist('filters[]')
     filters = [item for sublist in filters for item in sublist.split() if item]  
     
     modifiability = request.form.getlist('modifiability[]')
-    modifiability = [item for sublist in modifiability for item in sublist.split() if item] 
+    modifiability = [item for sublist in modifiability for item in sublist.split() if item]
 
     # analyze bulk (e.g. list of proteins) or each item individually (each protein in your list)
-    if request.form.get('bulk'):
+    if request.form.get('x_bulk'):
         # Switch is ON (Bulk selected)
-        mode = 'bulk'
+        x_mode = ['x_bulk']
     else:
         # Switch is OFF (Individual selected)
-        mode = 'individual'
+        x_mode = ['x_individual']
 
-    print(x_types, y_types, mode)
-    return f"hello friend"
+    if request.form.get('y_bulk'):
+        # Switch is ON (Bulk selected)
+        y_mode = ['y_bulk']
+    else:
+        # Switch is OFF (Individual selected)
+        y_mode = ['y_individual']
+
+    print(x, y, x_types, y_types, x_mode, y_mode)
+
     # create enrichment data
     subprocess.run([
         'conda', 'run', '-n', 'protmodcon', 'python', 'protmodcon.py'] +
                    ["--x-types"] + x_types +
                    ["--y-types"] + y_types +
                    ["--filters"] + filters +
-                   ["--modifiability"] + modifiability
+                   ["--modifiability"] + modifiability +
+                   ["--x-mode"] + x_mode +
+                   ["--y-mode"] + y_mode
         )
-    return f"hello friend"
+    
+    file_path = 'data/requests.json'
+    my_request = [x_types, y_types, filters, modifiability, x_mode, y_mode]
+
+    if os.path.exists(file_path):
+        with open(file_path, 'r') as f:
+            requests = json.load(f)
+        # get index of the request and the corresponding filename (its index)
+        try:
+            idx = requests.index(my_request)
+            filename = f'results_protmodcon/{idx}.csv'
+        except ValueError:
+            return 'No enrichment/depletion found.'
+    
     # Mapping for secondary structure elements should be done inside visualize_protmodcon.py 
-    cmd = [
+    subprocess.run([
         'conda', 'run', '-n', 'protmodcon', 'python', 'visualise_protmodcon.py',
-        '--data', data,
+        '--data', filename,
         '--x'
     ] + x_types + [
         '--y'
-    ] + y_types
-
-    subprocess.run(cmd)
-    print(cmd)
+    ] + y_types)
     
     return render_template('results.html')
 

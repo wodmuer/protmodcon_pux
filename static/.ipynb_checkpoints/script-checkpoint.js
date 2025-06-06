@@ -1,9 +1,177 @@
+// Wait for the DOM to be ready
 document.addEventListener('DOMContentLoaded', function() {
+    function renderFormSection(text, my_id) {
+    return `
+        <div class="form-section">
+            <div class="row align-items-center">
+            <div class="col-auto">
+                <label class="form-label">${text}</label>
+            </div>
+                <div class="col-auto">
+                <select name="${my_id}" id="${my_id}" class="form-select" required>
+                <option value="" disabled selected>Select annotation type</option>
+                <option value="ptm">PTM (Post-translational modification)</option>
+                <option value="AA">Amino Acid</option>
+                <option value="sec">Secondary Structure</option>
+                <option value="domain">Protein Domain</option>
+                <option value="protein">Protein ID (UniProt)</option>
+                </select>
+                </div>
+            </div>
+                
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="${my_id}_bulk" name="${my_id}_bulk">
+                <label class="form-check-label" for="${my_id}_bulk">
+                    <span id="${my_id}_switch-label">Individual</span>
+                </label>
+            </div>
+            <div id="${my_id}_checkboxes" class="option-checkboxes">
+                <label class="form-check-label">
+                <input type="checkbox" id="${my_id}_all" name="${my_id}_all" class="form-check-input">
+                Select All
+                </label>
+            </div>
+            
+            <div id="${my_id}_ptm_input" class="ptm-input input-with-overlay">
+                <div style="position:relative;">
+                    <div id="${my_id}_ptm-overlay" class="input-token-overlay"></div>
+                    <input type="text" id="${my_id}_ptm_text" name="${my_id}_types[]" class="form-control" placeholder="[1]Acetyl [21]Phospho [35]Oxidation" autocomplete="off">
+                    </div>
+                    <span class="ptm-hint">Enter PTM modifications separated by spaces, e.g. [1]Acetyl [21]Phospho [35]Oxidation<br>Modifications are annotated as [Unimod accession]name, where the name corresponds to the Unimod PSI-MS Name or, if unavailable, the Unimod Interim name.</span>
+                </div>
+            </div>
+            
+            <div id="${my_id}_aa_checkboxes" class="option-checkboxes">
+                <div class="row">
+                    <div class="col-md-2 col-4">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_aa_types[]" value="A" class="form-check-input"> A (Ala)</label>
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_aa_types[]" value="C" class="form-check-input"> C (Cys)</label>
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_aa_types[]" value="D" class="form-check-input"> D (Asp)</label>
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_aa_types[]" value="E" class="form-check-input"> E (Glu)</label>
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_aa_types[]" value="F" class="form-check-input"> F (Phe)</label>
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_aa_types[]" value="G" class="form-check-input"> G (Gly)</label>
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_aa_types[]" value="H" class="form-check-input"> H (His)</label>
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_aa_types[]" value="I" class="form-check-input"> I (Ile)</label>
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_aa_types[]" value="K" class="form-check-input"> K (Lys)</label>
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_aa_types[]" value="L" class="form-check-input"> L (Leu)</label>
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_aa_types[]" value="M" class="form-check-input"> M (Met)</label>
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_aa_types[]" value="N" class="form-check-input"> N (Asn)</label>
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_aa_types[]" value="P" class="form-check-input"> P (Pro)</label>
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_aa_types[]" value="Q" class="form-check-input"> Q (Gln)</label>
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_aa_types[]" value="R" class="form-check-input"> R (Arg)</label>
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_types[]" value="S" class="form-check-input"> S (Ser)</label>
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_aa_types[]" value="T" class="form-check-input"> T (Thr)</label>
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_aa_types[]" value="V" class="form-check-input"> V (Val)</label>
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_aa_types[]" value="W" class="form-check-input"> W (Trp)</label>
+                    </div>
+                    <div class="col-md-2 col-4">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_aa_types[]" value="Y" class="form-check-input"> Y (Tyr)</label>
+                    </div>
+                </div>
+            </div>
+
+            <div id="${my_id}_sec_checkboxes" class="option-checkboxes">
+                <div class="row">
+                    <div class="col-md-3 col-6">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="3₁₀-helix" class="form-check-input"> 3₁₀-helix</label>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="α-helix" class="form-check-input"> α-helix</label>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="π-helix" class="form-check-input"> π-helix</label>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="PPII-helix" class="form-check-input"> PPII-helix</label>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="ß-bridge" class="form-check-input"> ß-bridge</label>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="ß-strand" class="form-check-input"> ß-strand</label>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="turn" class="form-check-input"> turn</label>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="bend" class="form-check-input"> bend</label>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="loop" class="form-check-input"> loop</label>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="unassigned" class="form-check-input"> unassigned</label>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="IDR" class="form-check-input"> IDR</label>
+                    </div>
+                </div>
+            </div>
+                    
+            <div id="${my_id}_domain_input" class="domain-input input-with-overlay">
+                <div style="position:relative;">
+                    <div id="${my_id}_domain-overlay" class="input-token-overlay"></div>
+                    <input type="text" id="${my_id}_domain_text" name="${my_id}_types[]" class="form-control" placeholder="e.g. IPR000001 IPR000007" autocomplete="off">
+                    </div>
+                    <span class="domain-hint">Enter protein domain(s) separated by spaces, e.g. IPR000001 IPR000007</span>
+                </div>
+                        
+            <div id="${my_id}_protein_input" class="protein-input input-with-overlay">
+                <div style="position:relative;">
+                    <div id="${my_id}_protein-overlay" class="input-token-overlay"></div>
+                    <input type="text" id="${my_id}_protein_text" name="${my_id}_types[]" class="form-control" placeholder="e.g. P05067 P41227" autocomplete="off">
+                    </div>
+                    <span class="protein-hint">Enter protein IDs (UniProt) separated by spaces, e.g. P05067 P41227</span>
+                </div>
+            </div>
+    `;
+}
+
+  document.getElementById('form-sections').innerHTML =
+    renderFormSection('What is the enrichment/depletion of', 'x') +
+    renderFormSection('in', 'y');
+    
     let validPTMs = [];
     let validDomains = [];
     let validIDs = [];  // valid protein ids
     const hierarchy = ['ptm', 'AA', 'sec', 'domain', 'protein'];
-
+    
     // Mapping for corresponding options between X and Y dropdowns
     const xToYMap = {
         'ptm': 'ptm',
@@ -110,27 +278,6 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('y_protein_input').style.display = 'none';
     }    
 
-    // Function to hide all Z input fields
-    function hideAllZInputs() {
-        document.getElementById('z_sec_checkboxes').style.display = 'none';
-        document.getElementById('z_domain_input').style.display = 'none';
-        document.getElementById('z_protein_input').style.display = 'none';
-    }
-    
-    // Show/hide input fields based on z selection
-    document.getElementById('z').addEventListener('change', function() {
-        // Hide all z inputs first
-        hideAllZInputs();
-        // Show the appropriate input based on selection
-        if (this.value === 'sec') {
-            document.getElementById('z_sec_checkboxes').style.display = 'block';
-        } else if (this.value === 'domain') {
-            document.getElementById('z_domain_input').style.display = 'block';
-        } else if (this.value === 'protein') {
-            document.getElementById('z_protein_input').style.display = 'block';
-        }
-    });
-
     async function fetchValidLists() {
         try {
             const [ptms, domains, proteins] = await Promise.all([
@@ -221,31 +368,6 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('y_protein-overlay').scrollLeft = this.scrollLeft;
     });
 
-    // z protein overlay
-    document.getElementById('z_protein_text').addEventListener('input', function() {
-        renderOverlay('z_protein_text', 'z_protein-overlay', ' ', validIDs);
-    });
-    document.getElementById('z_protein_text').addEventListener('scroll', function() {
-        document.getElementById('z_protein-overlay').scrollLeft = this.scrollLeft;
-    });
-    
-    // Show/hide input fields based on z selection
-    document.getElementById('z').addEventListener('change', function() {
-        // Hide all z inputs first
-        //hideAllZInputs();
-        
-        // Show the appropriate input based on selection
-        if (this.value === 'AA') {
-            document.getElementById('z_aa_checkboxes').style.display = 'block';
-        } else if (this.value === 'sec') {
-            document.getElementById('z_sec_checkboxes').style.display = 'block';
-        } else if (this.value === 'domain') {
-            document.getElementById('z_domain_input').style.display = 'block';
-        } else if (this.value === 'protein') {
-            document.getElementById('z_protein_input').style.display = 'block';
-        }
-    });
-
     document.getElementById('x').addEventListener('change', function() {
         hideAllXInputs();
         if (this.value === 'ptm') {
@@ -285,53 +407,53 @@ document.addEventListener('DOMContentLoaded', function() {
     updateXOptions(this.value);
     
     // Select all checkboxes for x AA
-    document.getElementById('x_aa_all').addEventListener('change', function() {
-        const checkboxes = document.querySelectorAll('#x_aa_checkboxes input[type="checkbox"][name="x_types[]"]');
+    document.getElementById('x_all').addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('#x_aa_checkboxes input[type="checkbox"][name="x_aa_types[]"]');
         checkboxes.forEach(checkbox => checkbox.checked = this.checked);
     });
 
     // Uncheck "Select All" if any individual box is unchecked
-    document.querySelectorAll('#x_aa_checkboxes input[type="checkbox"][name="x_types[]"]').forEach(checkbox => {
+    document.querySelectorAll('#x_aa_checkboxes input[type="checkbox"][name="x_aa_types[]"]').forEach(checkbox => {
         checkbox.addEventListener('change', function() {
-            const all = document.querySelectorAll('#x_aa_checkboxes input[type="checkbox"][name="x_types[]"]');
+            const all = document.querySelectorAll('#x_aa_checkboxes input[type="checkbox"][name="x_aa_types[]"]');
             const allChecked = Array.from(all).every(cb => cb.checked);
-            /*document.getElementById('x_aa_all').checked = allChecked;*/
+            document.getElementById('x_all').checked = allChecked;
         });
     });
 
     // Select all checkboxes for x Sec
-    document.getElementById('x_sec_all').addEventListener('change', function() {
-        const checkboxes = document.querySelectorAll('#x_sec_checkboxes input[type="checkbox"][name="x_types[]"]');
+    document.getElementById('x_all').addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('#x_sec_checkboxes input[type="checkbox"][name="x_sec_types[]"]');
         checkboxes.forEach(checkbox => checkbox.checked = this.checked);
     });
 
     // Uncheck "Select All" if any individual box is unchecked 
-    document.querySelectorAll('#x_sec_checkboxes input[type="checkbox"][name="x_types[]"]').forEach(checkbox => {
+    document.querySelectorAll('#x_sec_checkboxes input[type="checkbox"][name="x_sec_types[]"]').forEach(checkbox => {
         checkbox.addEventListener('change', function() {
-            const all = document.querySelectorAll('#x_sec_checkboxes input[type="checkbox"][name="x_types[]"]');
+            const all = document.querySelectorAll('#x_sec_checkboxes input[type="checkbox"][name="x_sec_types[]"]');
             const allChecked = Array.from(all).every(cb => cb.checked); 
-            document.getElementById('x_sec_all').checked = allChecked;
+            document.getElementById('x_all').checked = allChecked;
         });
     });
 
     // Select all checkboxes for y AA
-    document.getElementById('y_aa_all').addEventListener('change', function() {
-        const checkboxes = document.querySelectorAll('#y_aa_checkboxes input[type="checkbox"][name="y_types[]"]');
+    document.getElementById('y_all').addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('#y_aa_checkboxes input[type="checkbox"][name="y_aa_types[]"]');
         checkboxes.forEach(checkbox => checkbox.checked = this.checked);
     });
 
 
     // Uncheck "Select All" if any individual box is unchecked
-    document.querySelectorAll('#y_aa_checkboxes input[type="checkbox"][name="y_types[]"]').forEach(checkbox => {
+    document.querySelectorAll('#y_aa_checkboxes input[type="checkbox"][name="y_aa_types[]"]').forEach(checkbox => {
         checkbox.addEventListener('change', function() {
-            const all = document.querySelectorAll('#y_aa_checkboxes input[type="checkbox"][name="y_types[]"]');
+            const all = document.querySelectorAll('#y_aa_checkboxes input[type="checkbox"][name="y_aa_types[]"]');
             const allChecked = Array.from(all).every(cb => cb.checked);
-            document.getElementById('y_aa_all').checked = allChecked;
+            document.getElementById('y_all').checked = allChecked;
         });
     });
 
     // Select all checkboxes for y Sec
-    document.getElementById('y_sec_all').addEventListener('change', function() {
+    document.getElementById('y_all').addEventListener('change', function() {
         const checkboxes = document.querySelectorAll('#y_sec_checkboxes input[type="checkbox"][name="y_types[]"]');
         checkboxes.forEach(checkbox => checkbox.checked = this.checked);
     });
@@ -341,44 +463,27 @@ document.addEventListener('DOMContentLoaded', function() {
         checkbox.addEventListener('change', function() {
             const all = document.querySelectorAll('#y_sec_checkboxes input[type="checkbox"][name="y_types[]"]');
             const allChecked = Array.from(all).every(cb => cb.checked);
-            document.getElementById('y_sec_all').checked = allChecked;
-        });
-    });
-
-    // Select all checkboxes for z Sec
-    document.getElementById('z_sec_all').addEventListener('change', function() {
-        const checkboxes = document.querySelectorAll('#z_sec_checkboxes input[type="checkbox"][name="z_data[]"]');
-        checkboxes.forEach(checkbox => checkbox.checked = this.checked);
-    });
-
-    // Uncheck "Select All" if any individual box is unchecked 
-    document.querySelectorAll('#z_sec_checkboxes input[type="checkbox"][name="z_data[]"]').forEach(checkbox => {
-        checkbox.addEventListener('change', function() {
-            const all = document.querySelectorAll('#z_sec_checkboxes input[type="checkbox"][name="z_data[]"]');
-            const allChecked = Array.from(all).every(cb => cb.checked);
-            document.getElementById('z_sec_all').checked = allChecked;
+            document.getElementById('y_all').checked = allChecked;
         });
     });
     
-   function setupBulkSwitch(checkboxId, labelId) {
-  const checkbox = document.getElementById(checkboxId);
-  const label = document.getElementById(labelId);
-  if (checkbox && label) {
-    label.textContent = checkbox.checked ? 'Bulk' : 'Individual';
-    checkbox.addEventListener('change', function() {
-      label.textContent = this.checked ? 'Bulk' : 'Individual';
-    });
-  }
-}
+    function setupBulkSwitch(checkboxId, labelId) {
+        const checkbox = document.getElementById(checkboxId);
+        const label = document.getElementById(labelId);
+        if (checkbox && label) {
+        label.textContent = checkbox.checked ? 'Bulk' : 'Individual';
+        checkbox.addEventListener('change', function() {
+          label.textContent = this.checked ? 'Bulk' : 'Individual';
+        });
+        }
+    }
 
     // Now call for each pair:
-    setupBulkSwitch('x_bulk', 'switch-label-x');
-    setupBulkSwitch('y_bulk', 'switch-label-y');d
-
-
+    setupBulkSwitch('x_bulk', 'x_switch-label');
+    setupBulkSwitch('y_bulk', 'y_switch-label');
+    
     // Initialize - hide all input fields
     hideAllXInputs();
     hideAllYInputs();
     hideAllZInputs();
-
 });
