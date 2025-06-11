@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <label class="form-check-label"><input type="checkbox" name="${my_id}_aa_types[]" value="R" class="form-check-input"> R (Arg)</label>
                     </div>
                     <div class="col-md-2 col-4">
-                        <label class="form-check-label"><input type="checkbox" name="${my_id}_types[]" value="S" class="form-check-input"> S (Ser)</label>
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_aa_types[]" value="S" class="form-check-input"> S (Ser)</label>
                     </div>
                     <div class="col-md-2 col-4">
                         <label class="form-check-label"><input type="checkbox" name="${my_id}_aa_types[]" value="T" class="form-check-input"> T (Thr)</label>

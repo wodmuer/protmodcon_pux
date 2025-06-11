@@ -5,7 +5,7 @@ import subprocess
 import json
 import os
 import re
-from multiprocessing import Pool
+from multiprocessing import Pool, cpu_count
 from functools import lru_cache
 import time
 import pandas as pd
@@ -17,6 +17,9 @@ from tqdm import tqdm
 import plotly.graph_objects as go
 import argparse
 import textwrap
+from pathlib import Path
+import pickle
+import hashlib
 
 def install_if_missing(package):
     try:
@@ -24,112 +27,192 @@ def install_if_missing(package):
     except ImportError:
         print(f"Installing '{package}'...")
         subprocess.check_call([sys.executable, "-m", "pip", "install", package])
-        
-# Use numba to accelerate calculations
-@nb.jit(nopython=True)
-def calculate_expected_values(row1_sum, row2_sum, col1_sum, col2_sum, total_sum):
-    """Calculate expected values for contingency tables"""
-    expected_a = (row1_sum * col1_sum) / total_sum
-    expected_b = (row1_sum * col2_sum) / total_sum
-    expected_c = (row2_sum * col1_sum) / total_sum
-    expected_d = (row2_sum * col2_sum) / total_sum
+
+# --- Aggressively optimized Numba routines ---
+
+@nb.njit(parallel=True, fastmath=True)
+def calculate_expected_values_vectorized(row1_sum, row2_sum, col1_sum, col2_sum, total_sum):
+    n = len(row1_sum)
+    expected_a = np.empty(n, dtype=np.float64)
+    expected_b = np.empty(n, dtype=np.float64)
+    expected_c = np.empty(n, dtype=np.float64)
+    expected_d = np.empty(n, dtype=np.float64)
+    for i in nb.prange(n):
+        if total_sum[i] > 0:
+            expected_a[i] = (row1_sum[i] * col1_sum[i]) / total_sum[i]
+            expected_b[i] = (row1_sum[i] * col2_sum[i]) / total_sum[i]
+            expected_c[i] = (row2_sum[i] * col1_sum[i]) / total_sum[i]
+            expected_d[i] = (row2_sum[i] * col2_sum[i]) / total_sum[i]
+        else:
+            expected_a[i] = expected_b[i] = expected_c[i] = expected_d[i] = 0.0
     return expected_a, expected_b, expected_c, expected_d
 
-@nb.jit(nopython=True)
-def calculate_odds_ratios(table_a, table_b, table_c, table_d):
-    """Calculate odds ratios from contingency table values"""
-    return (table_a * table_d) / (table_b * table_c)
+@nb.njit(parallel=True, fastmath=True)
+def calculate_odds_ratios_vectorized(table_a, table_b, table_c, table_d):
+    n = len(table_a)
+    odds_ratios = np.empty(n, dtype=np.float64)
+    for i in nb.prange(n):
+        denominator = table_b[i] * table_c[i]
+        if denominator != 0:
+            odds_ratios[i] = (table_a[i] * table_d[i]) / denominator
+        else:
+            odds_ratios[i] = np.inf
+    return odds_ratios
 
-# Function to compute chi-square for parallel processing
-def compute_chisq(argms):
-    idx, a, b, c, d = argms
-    """Compute chi-square test for a single contingency table"""
-    table = np.array([[a, b], [c, d]])
-    _, p, _, _ = scipy.stats.chi2_contingency(table)
-    return p
+@nb.njit(parallel=True, fastmath=True)
+def create_contingency_tables_vectorized(k_array, nc_array, nm_array, n_array):
+    n = len(k_array)
+    table_a = np.empty(n, dtype=np.int32)
+    table_b = np.empty(n, dtype=np.int32)
+    table_c = np.empty(n, dtype=np.int32)
+    table_d = np.empty(n, dtype=np.int32)
+    for i in nb.prange(n):
+        table_a[i] = k_array[i]
+        table_b[i] = nc_array[i] - k_array[i]
+        table_c[i] = nm_array[i] - k_array[i]
+        table_d[i] = n_array[i] - nm_array[i] - nc_array[i] + k_array[i]
+    return table_a, table_b, table_c, table_d
 
-def process_i(x_types, y_types, n, nm_per_d, nc_per_i, k_per_d_i):
-    """Process the analysis with optimized computation - parallel version"""    
+def compute_chisq_batch(tables_batch):
+    p_values = []
+    for table_a, table_b, table_c, table_d in tables_batch:
+        try:
+            table = np.array([[table_a, table_b], [table_c, table_d]], dtype=np.float64)
+            _, p, _, _ = scipy.stats.chi2_contingency(table, correction=False)
+            p_values.append(p)
+        except (ValueError, ZeroDivisionError):
+            p_values.append(1.0)
+    return p_values
+
+class DataCache:
+    def __init__(self, cache_dir='cache'):
+        self.cache_dir = Path(cache_dir)
+        self.cache_dir.mkdir(exist_ok=True)
+    def get_cache_key(self, *args):
+        key_str = repr(args)
+        return hashlib.md5(key_str.encode()).hexdigest()
+    def get(self, key):
+        cache_file = self.cache_dir / f"{key}.pkl"
+        if cache_file.exists():
+            with open(cache_file, 'rb') as f:
+                return pickle.load(f)
+        return None
+    def set(self, key, value):
+        cache_file = self.cache_dir / f"{key}.pkl"
+        with open(cache_file, 'wb') as f:
+            pickle.dump(value, f)
+
+cache = DataCache()
+
+def load_and_preprocess_data(filters=None):
+    cache_key = cache.get_cache_key(filters)
+    cached_data = cache.get(f"preprocessed_{cache_key}")
+    if cached_data is not None:
+        print("Using cached preprocessed data")
+        return cached_data
+    print("Loading and preprocessing data...")
+    dtype_dict = {'protein_id': 'category', 'position': 'int32'}
+    protmodcon = pd.read_csv('protmodcon.csv', dtype=dtype_dict, low_memory=False)
+    if filters:
+        for col in protmodcon.columns:
+            if protmodcon[col].dtype == 'object':
+                protmodcon = protmodcon[protmodcon[col].isin(filters)]
+    protmodcon['protein_position'] = protmodcon['protein_id'].astype(str) + '_' + protmodcon['position'].astype(str)
+    protmodcon['pos_id'] = pd.Categorical(protmodcon['protein_position']).codes
+    cache.set(f"preprocessed_{cache_key}", protmodcon)
+    return protmodcon
+
+def create_type_mapping_optimized(protmodcon, all_types):
+    type_to_posids = {}
+    #type_columns = [col for col in protmodcon.columns if col not in ['protein_id', 'position', 'pos_id', 'protein_position']]
+    type_columns = [col for col in protmodcon.columns if col not in ['position', 'pos_id', 'protein_position']]
+    for t in all_types:
+        mask = (protmodcon[type_columns] == t).any(axis=1)
+        type_to_posids[t] = set(protmodcon.loc[mask, 'pos_id'].to_numpy())
+    return type_to_posids
+
+def create_indicator_matrix_vectorized(types_list, type_to_posids, n):
+    # Build a 2D indicator matrix (rows: types_list, cols: positions)
+    matrix = np.zeros((len(types_list), n), dtype=np.uint8)
+    for i, types in enumerate(types_list):
+        pos_ids = set()
+        for t in types:
+            pos_ids |= type_to_posids.get(t, set())
+        if pos_ids:
+            matrix[i, np.fromiter(pos_ids, dtype=np.int32, count=len(pos_ids))] = 1
+    return matrix
+
+def process_enrichment_optimized(x_types, y_types, n, nm_per_d, nc_per_i, k_per_d_i):
     start_time = time.time()
-    
-    # Vectorize operations for improved performance
-    x_array = np.array([d for d in x_types for _ in y_types])
-    y_array = np.array([i for _ in x_types for i in y_types])
-    n_array = np.array([n for _ in x_array], dtype=np.int32)
-    nm_array = np.array([nm_per_d[d] for d in x_array], dtype=np.int32)
-    nc_array = np.array([nc_per_i[i] for i in y_array], dtype=np.int32)
-    k_array = np.array([k_per_d_i.get((d, i), 0) for d, i in zip(x_array, y_array)], dtype=np.int32)
-    # Efficient computation of contingency tables
-    table_a = k_array  # nx_in_y
-    table_b = nc_array - k_array  # not_nx_in_y
-    table_c = nm_array - k_array  # nx_not_in_y
-    table_d = n_array - nm_array - nc_array + k_array  # not_nx_not_in_y
-    
-    # Expected values calculation
+    combinations = [(d, i) for d in x_types for i in y_types]
+    x_array = np.array([d for d, _ in combinations])
+    y_array = np.array([i for _, i in combinations])
+    n_array = np.full(len(combinations), n, dtype=np.int32)
+    nm_array = np.array([nm_per_d[d] for d, _ in combinations], dtype=np.int32)
+    nc_array = np.array([nc_per_i[i] for _, i in combinations], dtype=np.int32)
+    k_array = np.array([k_per_d_i.get((d, i), 0) for d, i in combinations], dtype=np.int32)
+    table_a, table_b, table_c, table_d = create_contingency_tables_vectorized(
+        k_array, nc_array, nm_array, n_array
+    )
     row1_sum = table_a + table_b
     row2_sum = table_c + table_d
     col1_sum = table_a + table_c
     col2_sum = table_b + table_d
     total_sum = row1_sum + row2_sum
-    # Add a check to avoid division by zero
-    mask = total_sum > 0
-    
-    # Only calculate where total_sum > 0
-    expected_a = np.zeros_like(total_sum, dtype=float)
-    expected_b = np.zeros_like(total_sum, dtype=float)
-    expected_c = np.zeros_like(total_sum, dtype=float)
-    expected_d = np.zeros_like(total_sum, dtype=float)
-    
-    # Extract valid indices for processing
-    expected_a[mask], expected_b[mask], expected_c[mask], expected_d[mask] = calculate_expected_values(
-        row1_sum[mask], row2_sum[mask], col1_sum[mask], col2_sum[mask], total_sum[mask])
-    
-    valid_indices = np.where(
-        (expected_a >= 5) & (expected_b >= 5) & (expected_c >= 5) & (expected_d >= 5) & (total_sum > 0))[0]
-    
-    # Handle case with no valid tables
+    expected_a, expected_b, expected_c, expected_d = calculate_expected_values_vectorized(
+        row1_sum, row2_sum, col1_sum, col2_sum, total_sum
+    )
+    valid_mask = (
+        (expected_a >= 5) & (expected_b >= 5) &
+        (expected_c >= 5) & (expected_d >= 5) & (total_sum > 0)
+    )
+    valid_indices = np.where(valid_mask)[0]
     if len(valid_indices) == 0:
         print("No valid contingency tables found.")
         return pd.DataFrame(columns=[
-            'd', 'i', 'nx_in_y', 'nx_not_in_y', 
+            'x', 'y', 'nx_in_y', 'nx_not_in_y',
             'not_nx_in_y', 'not_nx_not_in_y', 'oddsr', 'p'
         ])
-    
-    print(f"Found {len(valid_indices)} valid tables out of {len(x_array)} combinations.")
-    
-    # Vectorized odds ratio calculation for valid indices
-    odds_ratios = calculate_odds_ratios(
-        table_a[valid_indices], 
-        table_b[valid_indices], 
-        table_c[valid_indices], 
-        table_d[valid_indices]
+    print(f"Found {len(valid_indices)} valid tables out of {len(combinations)} combinations.")
+    odds_ratios = calculate_odds_ratios_vectorized(
+        table_a[valid_indices], table_b[valid_indices],
+        table_c[valid_indices], table_d[valid_indices]
     )
-    
-    # Prepare arguments for parallel chi-square computation
-    chisq_argms = [
-        (idx, table_a[idx], table_b[idx], table_c[idx], table_d[idx]) 
-        for idx in valid_indices
-    ]
-
-    # Parallel computation of p-values
-    num_processes = min(os.cpu_count(), len(valid_indices))
-    if num_processes > 1 and len(valid_indices) > 10:  # Only use multiprocessing for larger datasets
-        print(f"Using {num_processes} processes for chi-square calculations")
+    valid_tables = list(zip(
+        table_a[valid_indices], table_b[valid_indices],
+        table_c[valid_indices], table_d[valid_indices]
+    ))
+    batch_size = min(4000, len(valid_tables))
+    batches = [valid_tables[i:i + batch_size] for i in range(0, len(valid_tables), batch_size)]
+    num_processes = min(cpu_count() or 1, len(batches))
+    if num_processes > 1 and len(valid_tables) > 100:
+        print(f"Computing p-values in parallel with {num_processes} processes")
         with Pool(processes=num_processes) as pool:
-            p_values = list(tqdm(
-                pool.imap(compute_chisq, chisq_argms, chunksize=max(1, len(chisq_argms) // (num_processes * 4))),
-                total=len(chisq_argms),
+            batch_results = list(tqdm(
+                pool.imap(compute_chisq_batch, batches),
+                total=len(batches),
                 desc="Computing p-values"
             ))
+        p_values = [p for batch in batch_results for p in batch]
     else:
-        # Fall back to sequential for small datasets
         print("Computing p-values sequentially")
-        p_values = [compute_chisq(argms) for argms in tqdm(chisq_argms, desc="Computing p-values")]
+        p_values = []
+        for batch in tqdm(batches, desc="Computing p-values"):
+            p_values.extend(compute_chisq_batch(batch))
     
-    # Create DataFrame for valid results
+    def smart_join(subarr):
+        # If it's a list or array with more than one element, join
+        if isinstance(subarr, (list, np.ndarray)):
+            if len(subarr) > 1:
+                return '_'.join(subarr)
+            else:
+                return subarr[0]
+        # If it's already a string, just return it
+        return subarr
+
     result_df = pd.DataFrame({
-        'x': x_array[valid_indices],
-        'y': y_array[valid_indices],
+        'x': [smart_join(subarr) for subarr in x_array[valid_indices]],
+        'y': [smart_join(subarr) for subarr in y_array[valid_indices]],
         'nx_in_y': table_a[valid_indices],
         'nx_not_in_y': table_c[valid_indices],
         'not_nx_in_y': table_b[valid_indices],
@@ -137,10 +220,9 @@ def process_i(x_types, y_types, n, nm_per_d, nc_per_i, k_per_d_i):
         'oddsr': odds_ratios,
         'p': p_values
     })
-    
-    print(f"Analysis processing completed in {time.time() - start_time:.2f} seconds")
+    print(f"Enrichment processing completed in {time.time() - start_time:.2f} seconds")
     return result_df
-    
+
 def perform_enrichment_analysis(
     x_types: set,
     y_types: set,
@@ -149,202 +231,115 @@ def perform_enrichment_analysis(
     x_mode: str,
     y_mode: str
 ) -> pd.DataFrame:
-    """
-    Perform enrichment analysis to evaluate which modifications or annotations (x_types) are enriched / depleted 
-    within specific protein features (y_types).
-
-    Example usage:
-        "Which modifications (x_types) are enriched in secondary structures (y_types)?"
-
-    Parameters
-    ----------
-    x_types : set
-        The "dependent data type" for enrichment analysis.
-    
-    y_types : set
-        The "independent data type" for enrichment analysis.
-    
-    filters: list, optional
-        Lists specifying which amino acids, secondary structures, domains, or proteins to include in the analysis.
-        By default, all lists are empty, resulting in a proteome-wide analysis.
-        
-    modifiability : dict, optional
-        Dictionary specifying eligible amino acids for each modification type. 
-        Example: {'[21]Phospho': ['S', 'T', 'Y']}.
-        If empty, all amino acids evaluated by ionbot are considered modifiable for each ptm_name.
-
-    x_mode / y_mode : str, required
-        Whether to calculate individual enrichment or for a group (e.g. proteins) of interest
-
-    Returns
-    -------
-    pd.DataFrame
-        A DataFrame containing the results of the enrichment analysis.
-    """
-    """
-    ptm_name_AA = {}
-    if x_types[0].startswith('['):
-        with open('data/ptm_name_AA.json') as file:
-            ptm_name_AA = json.load(file)
-        if len(modifiability) != 0:
-            for d in modifiability:
-                ptm_name_AA[d] = modifiability[d]
-    # also for y?
-    # Process modifiability argument if provided
-    if modifiability:
-        for mod_str in modifiability:
-            ptm, aas = mod_str.split(':')
-            modifiability[ptm] = aas.split(',')
-    """   
-                
-    # Mapping for secondary structure elements (to overcome HTML issues)
     sec_mapping = {
         '310HELX': '3₁₀-helix',
-         'AHELX': 'α-helix',
-         'PIHELX': 'π-helix',
-         'PPIIHELX': 'PPII-helix',
-         'STRAND': 'ß-strand',
-         'BRIDGE': 'ß-bridge',
-         'TURN': 'turn',
-         'BEND': 'bend',
-         'unassigned': 'unassigned',
-         'LOOP': 'loop',
-         'IDR': 'IDR'
+        'AHELX': 'α-helix',
+        'PIHELX': 'π-helix',
+        'PPIIHELX': 'PPII-helix',
+        'STRAND': 'ß-strand',
+        'BRIDGE': 'ß-bridge',
+        'TURN': 'turn',
+        'BEND': 'bend',
+        'unassigned': 'unassigned',
+        'LOOP': 'loop',
+        'IDR': 'IDR'
     }
-        
     def map_types(types, mapping):
         mapped = [mapping[sec] for sec in types if sec in mapping]
         return mapped if mapped else types
-    
     x_types = map_types(x_types, sec_mapping)
     y_types = map_types(y_types, sec_mapping)
     if filters:
-        filters = map_types(y_types, sec_mapping)
-    
-    # Check if there exists a file in which user's request has already been calculated
-    file_path = 'data/requests.json'
-    request = [x_types, y_types, filters, modifiability, [x_mode], [y_mode]]
-
-    if os.path.exists(file_path):
-        with open(file_path, 'r') as f:
-            requests = json.load(f)
-        # get index of the request and the corresponding filename (its index)
-        try:
-            idx = requests.index(request)
-            filename = f'results_protmodcon/{idx}.csv'
-            print(f"Results saved to {filename}")
-            return # stop function
-        except ValueError:
-            ''
-
-    # Update types - convert to tuples for caching
+        filters = map_types(filters, sec_mapping)
+    request_key = cache.get_cache_key(x_types, y_types, filters, modifiability, x_mode, y_mode)
+    cached_result = cache.get(f"analysis_{request_key}")
+    if cached_result is not None:
+        print(f"Using cached analysis results: {request_key}")
+        return cached_result
     x_types = tuple(sorted(x_types, key=lambda x: int(x.split(']')[0][1:]) if x.startswith('[') else x))
     y_types = tuple(sorted(y_types, key=lambda x: int(x.split(']')[0][1:]) if x.startswith('[') else x))
-    
     total_start_time = time.time()
-
-    protmodcon = pd.read_csv('protmodcon.csv')
-    
-    if filters:
-        mask = protmodcon.isin(filters).any(axis=1)
-        protmodcon = protmodcon[mask]
-
-    n = protmodcon[['protein_id', 'position']].drop_duplicates().shape[0]
-        
-    # compute pairwise overlaps across all columns
-    nm_per_d, nc_per_i, k_per_d_i = {}, {}, {}
-    
-    def get_mask_set(types):
-        mask = protmodcon.isin([types]).any(axis=1)
-        return set(protmodcon[mask]['protein_id'].astype(str) + '_' + protmodcon[mask]['position'].astype(str))
-
+    protmodcon = load_and_preprocess_data(filters)
+    n = protmodcon['pos_id'].nunique()
+    all_types = set(x_types) | set(y_types)
+    type_to_posids = create_type_mapping_optimized(protmodcon, all_types)
+    # Determine iteration modes
     if x_mode == "x_bulk":
-        x = x_types
-        x_set = get_mask_set(x)
-        nm_per_d[x] = len(x_set)
-        x_iter = [x]
+        x_iter = [tuple(x_types)]
+        x_types_for_matrix = [x_types]
     else:
         x_iter = x_types
-    
+        x_types_for_matrix = [[x] for x in x_types]
     if y_mode == "y_bulk":
-        y = y_types
-        y_set = get_mask_set(y)
-        nc_per_i[y] = len(y_set)
-        y_iter = [y]
+        y_iter = [tuple(y_types)]
+        y_types_for_matrix = [y_types]
     else:
         y_iter = y_types
+        y_types_for_matrix = [[y] for y in y_types]
+
+    x_matrix = create_indicator_matrix_vectorized(x_types_for_matrix, type_to_posids, n)
+    y_matrix = create_indicator_matrix_vectorized(y_types_for_matrix, type_to_posids, n)
     
-    for x in x_iter:
-        if x_mode == "x_individual":
-            x_set = get_mask_set(x)
-            nm_per_d[x] = len(x_set)
-        for y in y_iter:
-            if y_mode == "y_individual":
-                y_set = get_mask_set(y)
-                nc_per_i[y] = len(y_set)
-            k_per_d_i[(x, y)] = len(get_mask_set(x) & get_mask_set(y))
-
-    print("Processing data...")
-    start_time = time.time()
-
-    print(x_types, y_types, n, nm_per_d, nc_per_i, k_per_d_i)
-          
-    # Process the data
-    results_df = process_i(x_types, y_types, n, nm_per_d, nc_per_i, k_per_d_i)
+    # x_matrix: shape (n_x, n_positions)
+    # y_matrix: shape (n_y, n_positions)
     
-    print(f"Data processed in {time.time() - start_time:.2f} seconds")
+    # Expand x_matrix and y_matrix to compare every row pair
+    batch_size = 100  # adjust as needed for memory
+    k_matrix = np.zeros((x_matrix.shape[0], y_matrix.shape[0]), dtype=np.int32)
+    for i in range(x_matrix.shape[0]):
+        for j_start in range(0, y_matrix.shape[0], batch_size):
+            j_end = min(j_start + batch_size, y_matrix.shape[0])
+            k_matrix[i, j_start:j_end] = np.sum(
+                np.logical_and(x_matrix[i, :], y_matrix[j_start:j_end, :]), axis=1
+            )
 
-    # Apply multiple testing correction if needed and if there are results
+    nm_per_d = {x: int(x_matrix[i].sum()) for i, x in enumerate(x_iter)}
+    nc_per_i = {y: int(y_matrix[j].sum()) for j, y in enumerate(y_iter)}
+    k_per_d_i = {(x, y): int(k_matrix[i, j]) for i, x in enumerate(x_iter) for j, y in enumerate(y_iter)}
+    print("Processing enrichment analysis...")
+    results_df = process_enrichment_optimized(x_iter, y_iter, n, nm_per_d, nc_per_i, k_per_d_i)
     if not results_df.empty:
         print("Applying multiple testing correction...")
-        results_df['p_adj_bh'] = multipletests(
-            pvals=results_df.p, method='fdr_bh')[1]
-   
-    # Custom sorting function for ptm_names (contain brackets)
-    def custom_sort(value):
-        if isinstance(value, str) and value.startswith('['):
-            try:
-                return int(value.split(']')[0][1:])  # Extract integer from bracketed values
-            except ValueError:
+        results_df['p_adj_bh'] = multipletests(results_df['p'], method='fdr_bh')[1]
+        def custom_sort_key(series):
+            def extract_key(value):
+                if isinstance(value, str) and value.startswith('['):
+                    try:
+                        return int(value.split(']')[0][1:])
+                    except ValueError:
+                        return value
                 return value
-        return value  # Use original value for non-bracketed values
-    
+            return series.map(extract_key)
+        results_df = results_df.sort_values(
+            by=['x', 'y'],
+            key=custom_sort_key
+        )
+    cache.set(f"analysis_{request_key}", results_df)
     print(f"Analysis complete. Found {len(results_df)} results.")
     print(f"Total analysis time: {time.time() - total_start_time:.2f} seconds")
-    
-    # Apply custom sorting
-    if not results_df.empty:
-        results_df = results_df.sort_values(
-            by=['x', 'y'], 
-            key=lambda x: x.map(custom_sort)
-        )
+    os.makedirs('results_protmodcon', exist_ok=True)
+    timestamp = int(time.time())
+    filename = f'results_protmodcon/analysis_{timestamp}.csv'
+    results_df.to_csv(filename, index=False)
+    print(f"Results saved to {filename}")
+    return results_df
 
-        if not os.path.exists(file_path):
-            # Initialize file with the first request
-            requests = [request]
-            idx = 0
-        else:
-            with open(file_path, 'r') as f:
-                requests = json.load(f)
-                requests.append(request)
-                idx = len(requests) - 1
-        
-        # Save the updated requests back to the file
-        with open(file_path, 'w') as f:
-            json.dump(requests, f)
-        
-        # idx now holds the index of your request in the file        
-        filename = f'results_protmodcon/{idx}.csv'
-        results_df.to_csv(filename, index=False)
-        print(f"Results saved to {filename}")
-        
+def parse_modifiability(modifiability_args):
+    # Accepts a list of strings like "[21]Phospho:S,T,Y"
+    result = {}
+    for item in modifiability_args:
+        if ':' in item:
+            k, v = item.split(':', 1)
+            result[k.strip()] = [aa.strip() for aa in v.split(',')]
+    return result
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='protmodcon: Comprehensive Analysis of Protein Modifications from a Conformational Perspective',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=textwrap.dedent('''\
             Example:
-                python protmodcon.py --x-types [21]Phospho --y-types AHELX
+                python protmodcon.py --x-types [21]Phospho --y-types AHELX --x-mode x_individual --y-mode y_individual
                 sec options = 310HELX, AHELX, PIHELX, PPIIHELX, STRAND, BRIDGE, TURN, BEND, unassigned, LOOP, IDR
             ''')
     )
@@ -361,7 +356,7 @@ if __name__ == "__main__":
         help='Optional: list of filters'
     )
     parser.add_argument(
-        '--modifiability', nargs='*',
+        '--modifiability', nargs='*', default=[],
         help='''\
         Optional: Modifiability of amino acids per modification type. Format: "[Unimod accession]name:AA1,AA2", where the name corresponds to the Unimod
         PSI-MS Name or, if unavailable, the Unimod Interim name, e.g. --modifiability "[21]Phospho:S,T,Y" (double quotes mandatory). Valid ptm_name-AA 
@@ -379,30 +374,19 @@ if __name__ == "__main__":
         choices=['y_individual', 'y_bulk'],
         help='Required: Specify the mode for y. Must be "y_individual" or "y_bulk".'
     )
-
     args = parser.parse_args()
-
-    # Only install third-party packages (not standard library modules)
     third_party_packages = [
-        "pandas",
-        "numpy",
-        "scipy",
-        "statsmodels",
-        "numba",
-        "tqdm",
-        "plotly",
-        "kaleido"
+        "pandas", "numpy", "scipy", "statsmodels",
+        "numba", "tqdm", "plotly", "kaleido"
     ]
-    
     for package in third_party_packages:
         install_if_missing(package)
-
-    # Run enrichment analysis
+    modifiability = parse_modifiability(args.modifiability)
     perform_enrichment_analysis(
         x_types=args.x_types,
         y_types=args.y_types,
         filters=args.filters,
-        modifiability=args.modifiability,
+        modifiability=modifiability,
         x_mode=args.x_mode,
         y_mode=args.y_mode,
     )

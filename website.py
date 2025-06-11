@@ -5,6 +5,9 @@ import scipy
 import subprocess
 import os
 import json
+from pathlib import Path
+import pickle
+import hashlib
 
 app = Flask(__name__)
 
@@ -77,40 +80,55 @@ def results():
 
     print(x, y, x_types, y_types, x_mode, y_mode)
 
-    # create enrichment data
-    subprocess.run([
-        'conda', 'run', '-n', 'protmodcon', 'python', 'protmodcon.py'] +
-                   ["--x-types"] + x_types +
-                   ["--y-types"] + y_types +
-                   ["--filters"] + filters +
-                   ["--modifiability"] + modifiability +
-                   ["--x-mode"] + x_mode +
-                   ["--y-mode"] + y_mode
-        )
+    class DataCache:
+        def __init__(self, cache_dir='cache'):
+            self.cache_dir = Path(cache_dir)
+            self.cache_dir.mkdir(exist_ok=True)
+        def get_cache_key(self, *args):
+            key_str = repr(args)
+            return hashlib.md5(key_str.encode()).hexdigest()
+        def get(self, key):
+            cache_file = self.cache_dir / f"{key}.pkl"
+            if cache_file.exists():
+                with open(cache_file, 'rb') as f:
+                    return pickle.load(f)
+            return None
+        def set(self, key, value):
+            cache_file = self.cache_dir / f"{key}.pkl"
+            with open(cache_file, 'wb') as f:
+                pickle.dump(value, f)
     
-    file_path = 'data/requests.json'
-    my_request = [x_types, y_types, filters, modifiability, x_mode, y_mode]
+    cache = DataCache()
 
-    if os.path.exists(file_path):
-        with open(file_path, 'r') as f:
-            requests = json.load(f)
-        # get index of the request and the corresponding filename (its index)
-        try:
-            idx = requests.index(my_request)
-            filename = f'results_protmodcon/{idx}.csv'
-        except ValueError:
-            return 'No enrichment/depletion found.'
+    request_key = cache.get_cache_key(x_types, y_types, filters, modifiability, x_mode, y_mode)
+    cached_result = cache.get(f"analysis_{request_key}")
     
-    # Mapping for secondary structure elements should be done inside visualize_protmodcon.py 
-    subprocess.run([
-        'conda', 'run', '-n', 'protmodcon', 'python', 'visualise_protmodcon.py',
-        '--data', filename,
-        '--x'
-    ] + x_types + [
-        '--y'
-    ] + y_types)
-    
-    return render_template('results.html')
+    if cached_result is not None:
+        print("Using cached analysis results")
+    else: # create enrichment data
+        subprocess.run([
+            'conda', 'run', '-n', 'protmodcon', 'python', 'protmodcon.py'] +
+                       ["--x-types"] + x_types +
+                       ["--y-types"] + y_types +
+                       ["--filters"] + filters +
+                       ["--modifiability"] + modifiability +
+                       ["--x-mode"] + x_mode +
+                       ["--y-mode"] + y_mode
+            )
+
+    # visualize results
+    if cached_result is not None:
+        # Mapping for secondary structure elements should be done inside visualize_protmodcon.py 
+        subprocess.run([
+            'conda', 'run', '-n', 'protmodcon', 'python', 'visualise_protmodcon.py',
+            '--data', cached_result,
+            '--x'
+        ] + x_types + [
+            '--y'
+        ] + y_types)
+        return render_template('results.html')
+    else:
+        return f"No enrichment/depletion found."
 
 @app.route('/results/plot.png')
 def serve_plot():
