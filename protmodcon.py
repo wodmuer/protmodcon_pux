@@ -21,15 +21,6 @@ from pathlib import Path
 import pickle
 import hashlib
 
-def install_if_missing(package):
-    try:
-        importlib.import_module(package)
-    except ImportError:
-        print(f"Installing '{package}'...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
-
-# --- Aggressively optimized Numba routines ---
-
 @nb.njit(parallel=True, fastmath=True)
 def calculate_expected_values_vectorized(row1_sum, row2_sum, col1_sum, col2_sum, total_sum):
     n = len(row1_sum)
@@ -104,34 +95,15 @@ class DataCache:
 
 cache = DataCache()
 
-def load_and_preprocess_data(filters=None):
-    cache_key = cache.get_cache_key(filters)
-    cached_data = cache.get(f"preprocessed_{cache_key}")
-    if cached_data is not None:
-        print("Using cached preprocessed data")
-        return cached_data
-    print("Loading and preprocessing data...")
-    dtype_dict = {'protein_id': 'category', 'position': 'int32'}
-    protmodcon = pd.read_csv('protmodcon.csv', dtype=dtype_dict, low_memory=False)
-    if filters:
-        for col in protmodcon.columns:
-            if protmodcon[col].dtype == 'object':
-                protmodcon = protmodcon[protmodcon[col].isin(filters)]
-    protmodcon['protein_position'] = protmodcon['protein_id'].astype(str) + '_' + protmodcon['position'].astype(str)
-    protmodcon['pos_id'] = pd.Categorical(protmodcon['protein_position']).codes
-    cache.set(f"preprocessed_{cache_key}", protmodcon)
-    return protmodcon
-
 def create_type_mapping_optimized(protmodcon, all_types):
     type_to_posids = {}
-    #type_columns = [col for col in protmodcon.columns if col not in ['protein_id', 'position', 'pos_id', 'protein_position']]
     type_columns = [col for col in protmodcon.columns if col not in ['position', 'pos_id', 'protein_position']]
     for t in all_types:
         mask = (protmodcon[type_columns] == t).any(axis=1)
         type_to_posids[t] = set(protmodcon.loc[mask, 'pos_id'].to_numpy())
     return type_to_posids
 
-def create_indicator_matrix_vectorized(types_list, type_to_posids, n):
+def create_indicator_matrix_vectorized(types_list, type_to_posids, n, posid_to_index):
     # Build a 2D indicator matrix (rows: types_list, cols: positions)
     matrix = np.zeros((len(types_list), n), dtype=np.uint8)
     for i, types in enumerate(types_list):
@@ -139,7 +111,8 @@ def create_indicator_matrix_vectorized(types_list, type_to_posids, n):
         for t in types:
             pos_ids |= type_to_posids.get(t, set())
         if pos_ids:
-            matrix[i, np.fromiter(pos_ids, dtype=np.int32, count=len(pos_ids))] = 1
+            indices = [posid_to_index[pid] for pid in pos_ids if pid in posid_to_index]
+            matrix[i, indices] = 1
     return matrix
 
 def process_enrichment_optimized(x_types, y_types, n, nm_per_d, nc_per_i, k_per_d_i):
@@ -244,6 +217,7 @@ def perform_enrichment_analysis(
         'LOOP': 'loop',
         'IDR': 'IDR'
     }
+    
     def map_types(types, mapping):
         mapped = [mapping[sec] for sec in types if sec in mapping]
         return mapped if mapped else types
@@ -252,17 +226,26 @@ def perform_enrichment_analysis(
     if filters:
         filters = map_types(filters, sec_mapping)
     request_key = cache.get_cache_key(x_types, y_types, filters, modifiability, x_mode, y_mode)
+    print('protmodcon', x_types, y_types, filters, modifiability, x_mode, y_mode)
     cached_result = cache.get(f"analysis_{request_key}")
     if cached_result is not None:
-        print(f"Using cached analysis results: {request_key}")
-        return cached_result
+        return f"Using cached analysis results: {request_key}"
     x_types = tuple(sorted(x_types, key=lambda x: int(x.split(']')[0][1:]) if x.startswith('[') else x))
     y_types = tuple(sorted(y_types, key=lambda x: int(x.split(']')[0][1:]) if x.startswith('[') else x))
     total_start_time = time.time()
-    protmodcon = load_and_preprocess_data(filters)
+    dtype_dict = {'protein_id': 'category', 'position': 'int32'}
+    protmodcon = pd.read_csv('protmodcon.csv', dtype=dtype_dict, low_memory=False)
+    
+    # Step 1: Get a set of pos_ids matching the filter
+    if filters:
+        mask = protmodcon['protein_id'].isin(filters) | protmodcon['annotation'].isin(filters)
+        pos_id_set = set(protmodcon.loc[mask, 'pos_id'])
+        protmodcon = protmodcon[protmodcon['pos_id'].isin(pos_id_set)]
+
     n = protmodcon['pos_id'].nunique()
     all_types = set(x_types) | set(y_types)
     type_to_posids = create_type_mapping_optimized(protmodcon, all_types)
+
     # Determine iteration modes
     if x_mode == "x_bulk":
         x_iter = [tuple(x_types)]
@@ -277,12 +260,17 @@ def perform_enrichment_analysis(
         y_iter = y_types
         y_types_for_matrix = [[y] for y in y_types]
 
-    x_matrix = create_indicator_matrix_vectorized(x_types_for_matrix, type_to_posids, n)
-    y_matrix = create_indicator_matrix_vectorized(y_types_for_matrix, type_to_posids, n)
+    # Build a mapping from pos_id to matrix index
+    unique_pos_ids = sorted(protmodcon['pos_id'].unique())
+    posid_to_index = {pid: idx for idx, pid in enumerate(unique_pos_ids)}
+    n = len(unique_pos_ids)  # Ensure n matches the number of unique pos_ids
+    
+    x_matrix = create_indicator_matrix_vectorized(x_types_for_matrix, type_to_posids, n, posid_to_index)
+    y_matrix = create_indicator_matrix_vectorized(y_types_for_matrix, type_to_posids, n, posid_to_index)
     
     # x_matrix: shape (n_x, n_positions)
     # y_matrix: shape (n_y, n_positions)
-    
+
     # Expand x_matrix and y_matrix to compare every row pair
     batch_size = 100  # adjust as needed for memory
     k_matrix = np.zeros((x_matrix.shape[0], y_matrix.shape[0]), dtype=np.int32)
@@ -296,6 +284,7 @@ def perform_enrichment_analysis(
     nm_per_d = {x: int(x_matrix[i].sum()) for i, x in enumerate(x_iter)}
     nc_per_i = {y: int(y_matrix[j].sum()) for j, y in enumerate(y_iter)}
     k_per_d_i = {(x, y): int(k_matrix[i, j]) for i, x in enumerate(x_iter) for j, y in enumerate(y_iter)}
+
     print("Processing enrichment analysis...")
     results_df = process_enrichment_optimized(x_iter, y_iter, n, nm_per_d, nc_per_i, k_per_d_i)
     if not results_df.empty:

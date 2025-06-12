@@ -109,31 +109,31 @@ document.addEventListener('DOMContentLoaded', function() {
             <div id="${my_id}_sec_checkboxes" class="option-checkboxes">
                 <div class="row">
                     <div class="col-md-3 col-6">
-                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="3₁₀-helix" class="form-check-input"> 3₁₀-helix</label>
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="310HELX" class="form-check-input"> 3₁₀-helix</label>
                     </div>
                     <div class="col-md-3 col-6">
-                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="α-helix" class="form-check-input"> α-helix</label>
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="AHELX" class="form-check-input"> α-helix</label>
                     </div>
                     <div class="col-md-3 col-6">
-                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="π-helix" class="form-check-input"> π-helix</label>
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="PIHELX" class="form-check-input"> π-helix</label>
                     </div>
                     <div class="col-md-3 col-6">
-                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="PPII-helix" class="form-check-input"> PPII-helix</label>
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="PPIIHELX" class="form-check-input"> PPII-helix</label>
                     </div>
                     <div class="col-md-3 col-6">
-                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="ß-bridge" class="form-check-input"> ß-bridge</label>
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="BRIDGE" class="form-check-input"> ß-bridge</label>
                     </div>
                     <div class="col-md-3 col-6">
-                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="ß-strand" class="form-check-input"> ß-strand</label>
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="STRAND" class="form-check-input"> ß-strand</label>
                     </div>
                     <div class="col-md-3 col-6">
-                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="turn" class="form-check-input"> turn</label>
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="TURN" class="form-check-input"> turn</label>
                     </div>
                     <div class="col-md-3 col-6">
-                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="bend" class="form-check-input"> bend</label>
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="BEND" class="form-check-input"> bend</label>
                     </div>
                     <div class="col-md-3 col-6">
-                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="loop" class="form-check-input"> loop</label>
+                        <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="LOOP" class="form-check-input"> loop</label>
                     </div>
                     <div class="col-md-3 col-6">
                         <label class="form-check-label"><input type="checkbox" name="${my_id}_sec_types[]" value="unassigned" class="form-check-input"> unassigned</label>
@@ -276,6 +276,15 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('y_sec_checkboxes').style.display = 'none';
         document.getElementById('y_domain_input').style.display = 'none';
         document.getElementById('y_protein_input').style.display = 'none';
+    }  
+    
+    // Function to hide all filters input fields
+    function hideAllFiltersInputs() {
+        document.getElementById('filters_ptm_input').style.display = 'none';
+        document.getElementById('filters_aa_checkboxes').style.display = 'none';
+        document.getElementById('filters_sec_checkboxes').style.display = 'none';
+        document.getElementById('filters_domain_input').style.display = 'none';
+        document.getElementById('filters_protein_input').style.display = 'none';
     }    
 
     async function fetchValidLists() {
@@ -335,6 +344,14 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('y_ptm_text').addEventListener('scroll', function() {
         document.getElementById('y_ptm-overlay').scrollLeft = this.scrollLeft;
     });
+    
+    // filters PTM overlay
+    document.getElementById('filters_ptm_text').addEventListener('input', function() {
+        renderOverlay('filters_ptm_text', 'filters_ptm-overlay', ' ', validPTMs);
+    });
+    document.getElementById('filters_ptm_text').addEventListener('scroll', function() {
+        document.getElementById('filters_ptm-overlay').scrollLeft = this.scrollLeft;
+    });
 
     // x Domain overlay
     document.getElementById('x_domain_text').addEventListener('input', function() {
@@ -351,6 +368,14 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('y_domain_text').addEventListener('scroll', function() {
         document.getElementById('y_domain-overlay').scrollLeft = this.scrollLeft;
     });
+    
+    // filters Domain overlay
+    document.getElementById('filters_domain_text').addEventListener('input', function() {
+        renderOverlay('filters_domain_text', 'filters_domain-overlay', ' ', validDomains);
+    });
+    document.getElementById('filters_domain_text').addEventListener('scroll', function() {
+        document.getElementById('filters_domain-overlay').scrollLeft = this.scrollLeft;
+    });
 
     // x protein overlay
     document.getElementById('x_protein_text').addEventListener('input', function() {
@@ -366,6 +391,14 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     document.getElementById('y_protein_text').addEventListener('scroll', function() {
         document.getElementById('y_protein-overlay').scrollLeft = this.scrollLeft;
+    });
+    
+    // filters protein overlay
+    document.getElementById('filters_protein_text').addEventListener('input', function() {
+        renderOverlay('filters_protein_text', 'filters_protein-overlay', ' ', validIDs);
+    });
+    document.getElementById('filters_protein_text').addEventListener('scroll', function() {
+        document.getElementById('filters_protein-overlay').scrollLeft = this.scrollLeft;
     });
 
     document.getElementById('x').addEventListener('change', function() {
@@ -398,6 +431,21 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('y_protein_input').style.display = 'block';
         }
         updateXOptions(this.value);
+});
+    
+    document.getElementById('filters').addEventListener('change', function() {
+        hideAllFiltersInputs();
+        if (this.value === 'ptm') {
+            document.getElementById('filters_ptm_input').style.display = 'block';
+        } else if (this.value === 'AA') {
+            document.getElementById('filters_aa_checkboxes').style.display = 'block';
+        } else if (this.value === 'sec') {
+            document.getElementById('filters_sec_checkboxes').style.display = 'block';
+        } else if (this.value === 'domain') {
+            document.getElementById('filters_domain_input').style.display = 'block';
+        } else if (this.value === 'protein') {
+            document.getElementById('filters_protein_input').style.display = 'block';
+        }
 });
 
     // In x change event:
@@ -454,14 +502,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Select all checkboxes for y Sec
     document.getElementById('y_all').addEventListener('change', function() {
-        const checkboxes = document.querySelectorAll('#y_sec_checkboxes input[type="checkbox"][name="y_types[]"]');
+        const checkboxes = document.querySelectorAll('#y_sec_checkboxes input[type="checkbox"][name="y_sec_types[]"]');
         checkboxes.forEach(checkbox => checkbox.checked = this.checked);
     });
 
     // Uncheck "Select All" if any individual box is unchecked 
-    document.querySelectorAll('#y_sec_checkboxes input[type="checkbox"][name="y_types[]"]').forEach(checkbox => {
+    document.querySelectorAll('#y_sec_checkboxes input[type="checkbox"][name="y_sec_types[]"]').forEach(checkbox => {
         checkbox.addEventListener('change', function() {
-            const all = document.querySelectorAll('#y_sec_checkboxes input[type="checkbox"][name="y_types[]"]');
+            const all = document.querySelectorAll('#y_sec_checkboxes input[type="checkbox"][name="y_sec_types[]"]');
             const allChecked = Array.from(all).every(cb => cb.checked);
             document.getElementById('y_all').checked = allChecked;
         });
@@ -485,5 +533,5 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize - hide all input fields
     hideAllXInputs();
     hideAllYInputs();
-    hideAllZInputs();
+    hideAllFiltersInputs();
 });

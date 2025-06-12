@@ -57,8 +57,26 @@ def results():
                 y_types = json.load(f)
     y_types = [item for sublist in y_types for item in sublist.split() if item] 
 
-    filters = request.form.getlist('filters[]')
-    filters = [item for sublist in filters for item in sublist.split() if item]  
+    filters = request.form.get('filters')
+    filter_types = []
+    if filters:
+        if filters == 'AA':
+            filter_types = request.form.getlist('filters_aa_types[]')
+        elif filters == 'sec':
+            filter_types = request.form.getlist('filters_sec_types[]')
+        else:
+            filter_types = request.form.getlist('filters_types[]')
+            if not filter_types:
+                if filters == 'ptm':
+                    with open('static/valid_PTMS.json', 'r') as f:
+                        filter_types = json.load(f)
+                elif filters == 'domain':
+                     with open('static/valid_domains.json', 'r') as f:
+                        filter_types = json.load(f)
+                elif filters == 'protein':
+                    with open('static/valid_proteins.json', 'r') as f:
+                        filter_types = json.load(f)
+        filter_types = [item for sublist in filter_types for item in sublist.split() if item] 
     
     modifiability = request.form.getlist('modifiability[]')
     modifiability = [item for sublist in modifiability for item in sublist.split() if item]
@@ -78,39 +96,11 @@ def results():
         # Switch is OFF (Individual selected)
         y_mode = ['y_individual']
 
-    print(x, y, x_types, y_types, x_mode, y_mode)
-
-    class DataCache:
-        def __init__(self, cache_dir='cache'):
-            self.cache_dir = Path(cache_dir)
-            self.cache_dir.mkdir(exist_ok=True)
-        def get_cache_key(self, *args):
-            key_str = repr(args)
-            return hashlib.md5(key_str.encode()).hexdigest()
-        def get(self, key):
-            cache_file = self.cache_dir / f"{key}.pkl"
-            if cache_file.exists():
-                with open(cache_file, 'rb') as f:
-                    return pickle.load(f)
-            return None
-        def set(self, key, value):
-            cache_file = self.cache_dir / f"{key}.pkl"
-            with open(cache_file, 'wb') as f:
-                pickle.dump(value, f)
-    
-    cache = DataCache()
-
-    request_key = cache.get_cache_key(x_types, y_types, filters, modifiability, x_mode, y_mode)
-    cached_result = cache.get(f"analysis_{request_key}")
-    
-    if cached_result is not None:
-        print("Using cached analysis results")
-    else: # create enrichment data
-        subprocess.run([
+    subprocess.run([
             'conda', 'run', '-n', 'protmodcon', 'python', 'protmodcon.py'] +
                        ["--x-types"] + x_types +
                        ["--y-types"] + y_types +
-                       ["--filters"] + filters +
+                       ["--filters"] + filter_types +
                        ["--modifiability"] + modifiability +
                        ["--x-mode"] + x_mode +
                        ["--y-mode"] + y_mode
